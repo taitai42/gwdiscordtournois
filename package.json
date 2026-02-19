@@ -1,0 +1,30 @@
+{
+  "name": "gw-tournois-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord pour gérer les inscriptions aux tournois Guild Wars AT C",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "deploy": "node deploy-commands.js",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "guild-wars",
+    "tournament"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.1"
+  }
+}

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: gw-tournois-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TZ=Europe/Paris
+    volumes:
+      # Monter le fichier .env pour les mises à jour de configuration
+      - ./.env:/app/.env:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Healthcheck optionnel (le bot n'expose pas de port HTTP par défaut)
+    # healthcheck:
+    #   test: ["CMD", "node", "-e", "process.exit(0)"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 40s
