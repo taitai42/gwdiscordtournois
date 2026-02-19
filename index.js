@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits, Collection, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
-import { REACTIONS, TOURNAMENT_TYPES } from './config.js';
+import { TOURNAMENT_TYPES } from './config.js';
 import { 
   formatMorningMessage, 
   formatReminderMessage, 

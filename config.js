@@ -4,39 +4,32 @@
 
 export const TOURNAMENT_SCHEDULE = {
   ATA: {
-    0: { utcHour: 2, utcMinute: 0 },  // Dimanche - 02:00 UTC
-    1: { utcHour: 4, utcMinute: 0 },  // Lundi - 04:00 UTC
-    2: { utcHour: 3, utcMinute: 0 },  // Mardi - 03:00 UTC
-    3: { utcHour: 2, utcMinute: 0 },  // Mercredi - 02:00 UTC
-    4: { utcHour: 3, utcMinute: 0 },  // Jeudi - 03:00 UTC
-    5: { utcHour: 4, utcMinute: 0 },  // Vendredi - 04:00 UTC
-    6: { utcHour: 3, utcMinute: 0 },  // Samedi - 03:00 UTC
+    0: 2,  // Dimanche - 02:00 UTC
+    1: 4,  // Lundi - 04:00 UTC
+    2: 3,  // Mardi - 03:00 UTC
+    3: 2,  // Mercredi - 02:00 UTC
+    4: 3,  // Jeudi - 03:00 UTC
+    5: 4,  // Vendredi - 04:00 UTC
+    6: 3,  // Samedi - 03:00 UTC
   },
   ATB: {
-    0: { utcHour: 11, utcMinute: 0 }, // Dimanche - 11:00 UTC
-    1: { utcHour: 13, utcMinute: 0 }, // Lundi - 13:00 UTC
-    2: { utcHour: 12, utcMinute: 0 }, // Mardi - 12:00 UTC
-    3: { utcHour: 11, utcMinute: 0 }, // Mercredi - 11:00 UTC
-    4: { utcHour: 12, utcMinute: 0 }, // Jeudi - 12:00 UTC
-    5: { utcHour: 13, utcMinute: 0 }, // Vendredi - 13:00 UTC
-    6: { utcHour: 12, utcMinute: 0 }, // Samedi - 12:00 UTC
+    0: 11, // Dimanche - 11:00 UTC
+    1: 13, // Lundi - 13:00 UTC
+    2: 12, // Mardi - 12:00 UTC
+    3: 11, // Mercredi - 11:00 UTC
+    4: 12, // Jeudi - 12:00 UTC
+    5: 13, // Vendredi - 13:00 UTC
+    6: 12, // Samedi - 12:00 UTC
   },
   ATC: {
-    0: { utcHour: 18, utcMinute: 0 }, // Dimanche - 18:00 UTC
-    1: { utcHour: 20, utcMinute: 0 }, // Lundi - 20:00 UTC
-    2: { utcHour: 19, utcMinute: 0 }, // Mardi - 19:00 UTC
-    3: { utcHour: 18, utcMinute: 0 }, // Mercredi - 18:00 UTC
-    4: { utcHour: 19, utcMinute: 0 }, // Jeudi - 19:00 UTC
-    5: { utcHour: 20, utcMinute: 0 }, // Vendredi - 20:00 UTC
-    6: { utcHour: 19, utcMinute: 0 }, // Samedi - 19:00 UTC
+    0: 18, // Dimanche - 18:00 UTC
+    1: 20, // Lundi - 20:00 UTC
+    2: 19, // Mardi - 19:00 UTC
+    3: 18, // Mercredi - 18:00 UTC
+    4: 19, // Jeudi - 19:00 UTC
+    5: 20, // Vendredi - 20:00 UTC
+    6: 19, // Samedi - 19:00 UTC
   },
-};
-
-// Emojis pour les réactions
-export const REACTIONS = {
-  PRESENT: '✅',
-  ABSENT: '❌',
-  RETARD: '⏰'
 };
 
 // Temps avant le tournoi pour le rappel (en minutes)

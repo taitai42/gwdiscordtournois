@@ -8,17 +8,16 @@ import { TOURNAMENT_SCHEDULE, TOURNAMENT_TYPES, TOURNAMENT_NAMES } from './confi
  */
 export function getTournamentTime(date, type = 'ATC') {
   const dayOfWeek = date.getDay();
-  const schedule = TOURNAMENT_SCHEDULE[type][dayOfWeek];
+  const utcHour = TOURNAMENT_SCHEDULE[type][dayOfWeek];
   
-  // Créer une date avec l'heure du tournoi en UTC
+  // Créer une date avec l'heure du tournoi en UTC (toujours à l'heure pile)
   const tournamentDate = new Date(date);
-  tournamentDate.setUTCHours(schedule.utcHour, schedule.utcMinute, 0, 0);
+  tournamentDate.setUTCHours(utcHour, 0, 0, 0);
   
   return {
     type,
     typeName: TOURNAMENT_NAMES[type],
-    utcHour: schedule.utcHour,
-    utcMinute: schedule.utcMinute,
+    utcHour,
     frenchTime: tournamentDate.toLocaleTimeString('fr-FR', {
       timeZone: 'Europe/Paris',
       hour: '2-digit',
