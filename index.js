@@ -56,6 +56,11 @@ function ensureGuildState(guildId) {
     for (const type of Object.keys(TOURNAMENT_TYPES)) {
       initial[type] = {
         message: null,
+        // Identifies the specific tournament instance the responses below belong
+        // to (unix seconds of the tournament's start). When a new post is made
+        // for the *same* instance we keep the responses; for a different
+        // instance we reset them.
+        tournamentKey: null,
         present: new Set(),
         absent: new Set(),
         late: new Set(),
@@ -199,15 +204,23 @@ async function postTournamentInscriptionMessage(guildId, type) {
   const channel = await client.channels.fetch(config.channelId);
   if (!channel) throw new Error('Channel not found');
 
-  const message = type === 'MAT'
+  const baseMessage = type === 'MAT'
     ? formatMonthlyMessage(language)
     : formatMorningMessage(type, language);
   const row = buildButtonsRow(type, language);
 
-  const sentMessage = await channel.send({ content: message, components: [row] });
+  // Preserve existing RSVPs if this post targets the same tournament instance
+  // (e.g. someone ran `/atc` a second time, or `/mat` mid-month).
+  const state = ensureGuildState(guildId)[type];
+  const nextKey = getNextTournament(type).unix;
+  if (state.tournamentKey !== nextKey) {
+    resetTournamentResponses(guildId, type);
+    state.tournamentKey = nextKey;
+  }
 
-  resetTournamentResponses(guildId, type);
-  ensureGuildState(guildId)[type].message = sentMessage;
+  const content = baseMessage + formatParticipantsBlock(state, language);
+  const sentMessage = await channel.send({ content, components: [row] });
+  state.message = sentMessage;
 
   console.log(`✅ Inscription message ${type} posted (guild ${guildId})`);
   return sentMessage;
