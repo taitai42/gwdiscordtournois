@@ -15,6 +15,15 @@ const translations = {
       'Cliquez sur les boutons ci-dessous pour indiquer votre présence :\n\n' +
       'Un rappel sera envoyé 30 minutes avant le début du tournoi.',
 
+    // Monthly tournament (MAT) — posted at the start of the month
+    matMonthlyTitle: '🏆 **TOURNOI MENSUEL — {name}** 🏆',
+    matMonthlyBody:
+      'Le **{name}** approche !\n\n' +
+      '📅 Date : {date}\n' +
+      '⏰ Heure : {time} ({relative})\n\n' +
+      'Cliquez sur les boutons ci-dessous pour indiquer votre présence dès maintenant :\n\n' +
+      'Le message restera à jour avec la liste des inscrits, et un rappel sera envoyé 30 minutes avant le début du tournoi.',
+
     // Reminder message
     reminderTitle: '⏰ **RAPPEL TOURNOI {type}** ⏰',
     reminderBody: 'Le tournoi **{name}** commence {relative} à {time} !',
@@ -84,6 +93,16 @@ const translations = {
     setupOptionScheduleFixed18: 'Chaque jour à 18:00 (Europe/Paris)',
     setupScheduleSet: '✅ Calendrier mis à jour : **{label}**.',
 
+    // Help shown after the channel is configured
+    setupHelp:
+      'ℹ️ **Commandes disponibles**\n' +
+      '• `/setup` — ouvre l’assistant de configuration (admin)\n' +
+      '• `/config` — affiche la configuration actuelle\n' +
+      '• `/reminder` — poste un rappel du prochain tournoi du jour\n' +
+      '• `/ata` · `/atb` · `/atc` — poste manuellement l’inscription pour ce tournoi\n' +
+      '• `/mat` — poste manuellement l’inscription du tournoi mensuel\n\n' +
+      'Astuce : les heures s’affichent automatiquement dans le fuseau horaire de chaque joueur.',
+
     // Slash command descriptions (used by deploy-commands.js)
     cmdReminderDesc: 'Affiche le rappel du tournoi avec le temps restant et la liste des inscrits',
     cmdReminderTypeDesc: 'Type de tournoi',
@@ -101,6 +120,14 @@ const translations = {
     cmdConfigDesc: 'Affiche la configuration actuelle du bot pour ce serveur',
   },
   en: {
+    matMonthlyTitle: '🏆 **MONTHLY TOURNAMENT — {name}** 🏆',
+    matMonthlyBody:
+      'The **{name}** is coming up!\n\n' +
+      '📅 Date: {date}\n' +
+      '⏰ Time: {time} ({relative})\n\n' +
+      'Click the buttons below to RSVP now:\n\n' +
+      'The message will stay up to date with the participants list, and a reminder will be sent 30 minutes before the tournament starts.',
+
     morningTitle: '🏆 **TOURNAMENT {type} - {day}** 🏆',
     morningBody:
       "The automatic tournament **{name}** will take place at {time} ({relative}).\n\n" +
@@ -168,6 +195,16 @@ const translations = {
     setupOptionScheduleFixed12: 'Every day at 12:00 (Europe/Paris)',
     setupOptionScheduleFixed18: 'Every day at 18:00 (Europe/Paris)',
     setupScheduleSet: '✅ Schedule updated: **{label}**.',
+
+    // Help shown after the channel is configured
+    setupHelp:
+      'ℹ️ **Available commands**\n' +
+      '• `/setup` — open the setup wizard (admin)\n' +
+      '• `/config` — show the current configuration\n' +
+      '• `/reminder` — post a reminder for the next tournament of the day\n' +
+      '• `/ata` · `/atb` · `/atc` — manually post the sign-up for that tournament\n' +
+      '• `/mat` — manually post the monthly tournament sign-up\n\n' +
+      'Tip: times are automatically displayed in each player’s own timezone.',
 
     cmdReminderDesc: 'Show the tournament reminder with remaining time and the list of attendees',
     cmdReminderTypeDesc: 'Tournament type',

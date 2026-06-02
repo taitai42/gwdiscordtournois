@@ -16,6 +16,7 @@ import dotenv from 'dotenv';
 import { TOURNAMENT_TYPES } from './config.js';
 import {
   formatMorningMessage,
+  formatMonthlyMessage,
   formatReminderMessage,
   formatParticipantsBlock,
   getTodayTournament,
@@ -24,6 +25,7 @@ import {
   isAutoPostTime,
   isFixedHourNow,
   isThirdSaturday,
+  getParisDayOfMonth,
 } from './utils.js';
 import { t, normalizeLocale, SUPPORTED_LANGUAGES } from './i18n.js';
 import {
@@ -197,7 +199,9 @@ async function postTournamentInscriptionMessage(guildId, type) {
   const channel = await client.channels.fetch(config.channelId);
   if (!channel) throw new Error('Channel not found');
 
-  const message = formatMorningMessage(type, language);
+  const message = type === 'MAT'
+    ? formatMonthlyMessage(language)
+    : formatMorningMessage(type, language);
   const row = buildButtonsRow(type, language);
 
   const sentMessage = await channel.send({ content: message, components: [row] });
@@ -262,9 +266,26 @@ function shouldPostNow(scheduleMode, tournamentType) {
 }
 
 /**
+ * Hour at which MAT is posted on day 1 of the month for a given schedule mode.
+ * For `fixed_HH` modes we honour the chosen hour; otherwise default to 09:00.
+ */
+function matPostHourForMode(scheduleMode) {
+  const fixed = /^fixed_(\d{2})$/.exec(scheduleMode || '');
+  if (fixed) {
+    const h = Number(fixed[1]);
+    if (Number.isFinite(h)) return h;
+  }
+  return 9;
+}
+
+/**
  * Runs every minute. For each guild, posts the inscription message for any
  * auto-selected tournament whose schedule matches the current minute.
- * `MAT` is only posted on the 3rd Saturday of the month.
+ *
+ * MAT is special: instead of firing close to the tournament, it is posted on
+ * the 1st of the month at the guild's chosen hour (or 09:00 Europe/Paris by
+ * default) so players have weeks to organize. The same message stays live and
+ * collects RSVPs until the tournament actually happens.
  */
 async function checkAutoPostTime() {
   let guilds;
@@ -274,14 +295,15 @@ async function checkAutoPostTime() {
     console.error('❌ Auto-post lookup failed:', error);
     return;
   }
-  const thirdSaturday = isThirdSaturday(new Date());
+  const parisDay = getParisDayOfMonth();
   for (const [guildId, config] of guilds) {
     const mode = config.scheduleMode || DEFAULT_SCHEDULE_MODE;
-    const types = (config.autoPost || []).filter(
-      tType => TOURNAMENT_TYPES[tType] && (tType !== 'MAT' || thirdSaturday)
-    );
-    for (const tType of types) {
-      if (!shouldPostNow(mode, tType)) continue;
+    const enabled = (config.autoPost || []).filter(tType => TOURNAMENT_TYPES[tType]);
+    for (const tType of enabled) {
+      const fire = tType === 'MAT'
+        ? parisDay === 1 && isFixedHourNow(matPostHourForMode(mode))
+        : shouldPostNow(mode, tType);
+      if (!fire) continue;
       try {
         await postTournamentInscriptionMessage(guildId, tType);
       } catch (error) {
@@ -403,6 +425,7 @@ async function handleSetupCommand(interaction) {
     if (channel) {
       await setGuildChannel(interaction.guildId, channel.id);
       replies.push(t('setupSuccess', userLang, { channel: `<#${channel.id}>` }));
+      replies.push(t('setupHelp', userLang));
     }
     if (languageOpt) {
       await setGuildLanguage(interaction.guildId, languageOpt);
@@ -494,7 +517,10 @@ client.on(Events.InteractionCreate, async interaction => {
           const channelId = interaction.values[0];
           await setGuildChannel(interaction.guildId, channelId);
           await interaction.reply({
-            content: t('setupSuccess', userLang, { channel: `<#${channelId}>` }),
+            content:
+              t('setupSuccess', userLang, { channel: `<#${channelId}>` }) +
+              '\n\n' +
+              t('setupHelp', userLang),
             ephemeral: true,
           });
         } else if (interaction.customId === 'setup_autopost') {
@@ -562,7 +588,9 @@ client.on(Events.InteractionCreate, async interaction => {
         try {
           const config = await getGuildConfig(guildId);
           const guildLang = normalizeLocale(config?.language);
-          const baseMessage = formatMorningMessage(type, guildLang);
+          const baseMessage = type === 'MAT'
+            ? formatMonthlyMessage(guildLang)
+            : formatMorningMessage(type, guildLang);
           const participantsList = formatParticipantsBlock(state, guildLang);
           await state.message.edit({
             content: baseMessage + participantsList,

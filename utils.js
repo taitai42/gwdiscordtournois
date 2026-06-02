@@ -157,6 +157,17 @@ export function isFixedHourNow(hour) {
   return h === hour && m === 0;
 }
 
+/**
+ * Returns the current day-of-month (1-31) in Europe/Paris.
+ */
+export function getParisDayOfMonth(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Paris',
+    day: '2-digit',
+  }).formatToParts(now);
+  return Number(parts.find(p => p.type === 'day')?.value ?? 0);
+}
+
 export function getTimeUntilTournament(tournamentDate) {
   const now = new Date();
   const diff = tournamentDate - now;
@@ -173,6 +184,9 @@ export function getTimeUntilTournament(tournamentDate) {
 // These render in each viewer's locale & timezone automatically.
 function timeTag(unix) {
   return `<t:${unix}:t>`; // localized short time
+}
+function dateTag(unix) {
+  return `<t:${unix}:D>`; // localized long date (e.g. "June 20, 2026")
 }
 function relativeTag(unix) {
   return `<t:${unix}:R>`; // "in 3 hours" / "dans 3 heures"
@@ -197,6 +211,23 @@ export function formatMorningMessage(type = 'ATC', language = DEFAULT_LANGUAGE) 
     relative: relativeTag(tournament.unix),
   });
 
+  return `${title}\n\n${body}`;
+}
+
+/**
+ * Special message for the monthly tournament (MAT) posted at the start of the
+ * month so players have plenty of time to organize. Unlike the daily morning
+ * message, it shows the full date and omits the current weekday from the title.
+ */
+export function formatMonthlyMessage(language = DEFAULT_LANGUAGE) {
+  const tournament = getNextTournament('MAT');
+  const title = t('matMonthlyTitle', language, { name: tournament.typeName });
+  const body = t('matMonthlyBody', language, {
+    name: tournament.typeName,
+    date: dateTag(tournament.unix),
+    time: timeTag(tournament.unix),
+    relative: relativeTag(tournament.unix),
+  });
   return `${title}\n\n${body}`;
 }
 
