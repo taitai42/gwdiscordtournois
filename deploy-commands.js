@@ -107,11 +107,6 @@ const commands = [
     .setDescription(t('cmdConfigDesc'))
     .setDescriptionLocalizations(localizationsFor('cmdConfigDesc'))
     .setDMPermission(false),
-  new SlashCommandBuilder()
-    .setName('debug')
-    .setDescription('Run the auto-post check immediately (admin only, for testing)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .setDMPermission(false),
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
