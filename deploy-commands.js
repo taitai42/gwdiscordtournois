@@ -11,9 +11,9 @@ import { t, localizationsFor } from './i18n.js';
 dotenv.config();
 
 // Command names are always in English so they are stable across locales.
-// Descriptions use the default language (French) as the primary string and
-// add `description_localizations` so each user sees them in their own
-// Discord client language.
+// Descriptions use the default language as the primary string and add
+// `description_localizations` so each user sees them in their own Discord
+// client language.
 
 const commands = [
   new SlashCommandBuilder()
@@ -27,10 +27,10 @@ const commands = [
         .setDescriptionLocalizations(localizationsFor('cmdReminderTypeDesc'))
         .setRequired(false)
         .addChoices(
-          { name: 'AT A (Matin)', value: 'ATA' },
-          { name: 'AT B (Après-midi)', value: 'ATB' },
-          { name: 'AT C (Soir)', value: 'ATC' },
-          { name: 'mAT (Mensuel)', value: 'MAT' }
+          { name: 'AT A (Morning)', value: 'ATA' },
+          { name: 'AT B (Afternoon)', value: 'ATB' },
+          { name: 'AT C (Evening)', value: 'ATC' },
+          { name: 'mAT (Monthly)', value: 'MAT' }
         )
     ),
   new SlashCommandBuilder()
@@ -113,10 +113,10 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   try {
-    console.log('🔄 Déploiement des commandes slash...');
+    console.log('🔄 Deploying slash commands...');
 
     if (!process.env.APPLICATION_ID) {
-      console.error('❌ APPLICATION_ID non défini dans le fichier .env');
+      console.error('❌ APPLICATION_ID is not set in .env');
       process.exit(1);
     }
 
@@ -125,13 +125,13 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
       { body: commands }
     );
 
-    console.log('✅ Commandes slash déployées avec succès !');
-    console.log('📝 Commandes disponibles :');
-    console.log('   - /reminder : Rappel avec temps restant');
-    console.log('   - /ata, /atb, /atc, /mat : Poste un message pour le tournoi correspondant');
-    console.log('   - /setup : Configure le canal, la langue et les tournois auto');
-    console.log('   - /config : Affiche la configuration actuelle');
+    console.log('✅ Slash commands deployed successfully.');
+    console.log('📝 Available commands:');
+    console.log('   - /reminder : reminder with remaining time and current sign-ups');
+    console.log('   - /ata, /atb, /atc, /mat : post a sign-up message for that tournament');
+    console.log('   - /setup : configure channel, language, auto-posted tournaments and schedule');
+    console.log('   - /config : show the current configuration');
   } catch (error) {
-    console.error('❌ Erreur lors du déploiement des commandes:', error);
+    console.error('❌ Failed to deploy commands:', error);
   }
 })();

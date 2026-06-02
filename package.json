@@ -1,9 +1,12 @@
 {
   "name": "gw-tournois-bot",
   "version": "1.0.0",
-  "description": "Bot Discord pour gérer les inscriptions aux tournois Guild Wars AT C",
+  "description": "Discord bot that automates sign-ups and reminders for Guild Wars Automated Tournaments and Monthly Automated Tournaments.",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
@@ -16,12 +19,22 @@
   },
   "keywords": [
     "discord",
-    "bot",
+    "discord-bot",
+    "discord.js",
     "guild-wars",
-    "tournament"
+    "tournament",
+    "alliance-battle"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "taitai42",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taitai42/gwdiscordtournois.git"
+  },
+  "bugs": {
+    "url": "https://github.com/taitai42/gwdiscordtournois/issues"
+  },
+  "homepage": "https://github.com/taitai42/gwdiscordtournois#readme",
   "dependencies": {
     "discord.js": "^14.14.1",
     "node-cron": "^3.0.3",

@@ -2,12 +2,12 @@ import { TOURNAMENT_SCHEDULE, TOURNAMENT_NAMES, MONTHLY_TOURNAMENT } from './con
 import { t, intlLocale, DEFAULT_LANGUAGE } from './i18n.js';
 
 /**
- * Retourne la date (UTC) de la N-ième occurrence d'un jour de semaine
- * dans le mois de la date donnée.
- * @param {Date} date - n'importe quelle date dans le mois ciblé
- * @param {number} weekday - 0 = dimanche, 6 = samedi
- * @param {number} occurrence - 1 = première, 2 = deuxième, etc.
- * @returns {Date} - date à 00:00:00 UTC
+ * Returns the date (UTC) of the Nth occurrence of a given weekday in the
+ * month of the supplied date.
+ * @param {Date} date - any date within the target month
+ * @param {number} weekday - 0 = Sunday, 6 = Saturday
+ * @param {number} occurrence - 1 = first, 2 = second, etc.
+ * @returns {Date} - midnight UTC on that day
  */
 export function getNthWeekdayOfMonth(date, weekday, occurrence) {
   const year = date.getUTCFullYear();
@@ -19,7 +19,7 @@ export function getNthWeekdayOfMonth(date, weekday, occurrence) {
 }
 
 /**
- * Vérifie si une date est le 3e samedi du mois (jour calendaire, UTC).
+ * True if the given date is the 3rd Saturday of its month (UTC).
  */
 export function isThirdSaturday(date) {
   const target = getNthWeekdayOfMonth(date, MONTHLY_TOURNAMENT.MAT.weekday, MONTHLY_TOURNAMENT.MAT.weekOfMonth);
@@ -31,7 +31,7 @@ export function isThirdSaturday(date) {
 }
 
 /**
- * Retourne la date du prochain tournoi mensuel (3e samedi) à 16:00 UTC.
+ * Returns the next monthly tournament date (3rd Saturday) at 16:00 UTC.
  */
 export function getNextMonthlyTournamentDate(from = new Date()) {
   const { weekday, weekOfMonth, utcHour } = MONTHLY_TOURNAMENT.MAT;
@@ -46,10 +46,9 @@ export function getNextMonthlyTournamentDate(from = new Date()) {
 }
 
 /**
- * Obtient l'horaire d'un tournoi pour un jour donné.
- * Le résultat contient la date UTC ; l'affichage en heure locale est
- * délégué aux balises de timestamp Discord (<t:unix:t>) qui s'adaptent
- * automatiquement au fuseau et à la langue de chaque utilisateur.
+ * Returns the schedule of a tournament for a given day.
+ * The result is in UTC; localized display in each user's timezone is handled
+ * by Discord timestamp tags (<t:unix:t>) on the rendering side.
  */
 export function getTournamentTime(date, type = 'ATC') {
   let tournamentDate;
@@ -77,7 +76,7 @@ export function getTodayTournament(type = 'ATC') {
 }
 
 /**
- * Nom du jour dans la langue demandée.
+ * Returns the weekday name in the requested language.
  */
 export function getDayName(date, language = DEFAULT_LANGUAGE) {
   return date.toLocaleDateString(intlLocale(language), { weekday: 'long' });
@@ -193,7 +192,7 @@ function relativeTag(unix) {
 }
 
 /**
- * Formate le message du matin pour le tournoi.
+ * Formats the morning sign-up message for a daily tournament.
  * @param {string} type
  * @param {string} [language]
  */
@@ -232,7 +231,7 @@ export function formatMonthlyMessage(language = DEFAULT_LANGUAGE) {
 }
 
 /**
- * Formate le message de rappel avec la liste des participants.
+ * Formats the reminder message with the current participants list.
  */
 export function formatReminderMessage(
   presentUsers,
@@ -278,7 +277,7 @@ export function formatReminderMessage(
 }
 
 /**
- * Formate la liste des participants à ajouter sous le message d'inscription.
+ * Formats the participants block appended below the sign-up message.
  */
 export function formatParticipantsBlock(
   { present, absent, late },

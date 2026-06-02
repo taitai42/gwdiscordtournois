@@ -213,20 +213,6 @@ async function postTournamentInscriptionMessage(guildId, type) {
   return sentMessage;
 }
 
-async function postMorningMessageForAllGuilds(type = 'ATC') {
-  const guilds = await getAllGuildConfigs();
-  for (const [guildId] of guilds) {
-    try {
-      await postTournamentInscriptionMessage(guildId, type);
-    } catch (error) {
-      console.error(`❌ Morning message error ${type} (guild ${guildId}):`, error);
-    }
-  }
-}
-
-// Number of hours before a tournament at which the auto-post fires.
-const AUTO_POST_HOURS_BEFORE = 7;
-
 // Available schedule modes shown in the wizard. The first one is the default.
 const SCHEDULE_MODES = [
   { value: 'before_1h', labelKey: 'setupOptionScheduleBefore1h' },
@@ -716,9 +702,9 @@ client.on(Events.ClientReady, () => {
   console.log(`📝 Logged in as ${client.user.tag}`);
   console.log(`🌐 Supported languages: ${SUPPORTED_LANGUAGES.join(', ')}`);
 
-  console.log(`⏰ Auto-post fires ${AUTO_POST_HOURS_BEFORE}h before each selected tournament`);
-  console.log(`⏰ Reminder fires 30 min before each tournament`);
-  console.log(`💬 Available commands: /reminder, /ata, /atb, /atc, /mat, /setup, /config`);
+  console.log('⏰ Auto-post fires per guild schedule (default: 7h before each tournament)');
+  console.log('⏰ Reminder fires 30 min before each tournament');
+  console.log('💬 Available commands: /reminder, /ata, /atb, /atc, /mat, /setup, /config');
 
   cron.schedule(
     '* * * * *',

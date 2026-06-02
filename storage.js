@@ -1,5 +1,6 @@
 // MySQL-backed persistence for per-guild configuration.
-// Schema: guild_configs(guild_id PK, channel_id, language, created_at, updated_at)
+// Schema: guild_configs(guild_id PK, channel_id, language, auto_post,
+//                       schedule_mode, created_at, updated_at)
 
 import mysql from 'mysql2/promise';
 import { DEFAULT_LANGUAGE, normalizeLocale } from './i18n.js';
@@ -36,7 +37,7 @@ export async function initStorage({ retries = 30, delayMs = 2000 } = {}) {
       break;
     } catch (error) {
       lastError = error;
-      console.log(`⏳ MySQL indisponible (tentative ${attempt}/${retries})...`);
+      console.log(`⏳ MySQL not ready (attempt ${attempt}/${retries})...`);
       await new Promise(r => setTimeout(r, delayMs));
     }
   }
@@ -67,7 +68,7 @@ export async function initStorage({ retries = 30, delayMs = 2000 } = {}) {
     }
   }
 
-  console.log('✅ MySQL prêt');
+  console.log('✅ MySQL ready');
 }
 
 function parseAutoPost(value) {
