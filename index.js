@@ -1,326 +1,381 @@
-import { Client, GatewayIntentBits, Collection, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionFlagsBits,
+  Events,
+} from 'discord.js';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
 import { TOURNAMENT_TYPES } from './config.js';
-import { 
-  formatMorningMessage, 
-  formatReminderMessage, 
+import {
+  formatMorningMessage,
+  formatReminderMessage,
+  formatParticipantsBlock,
   getTodayTournament,
   isReminderTime,
-  getTimeUntilTournament
+  isThirdSaturday,
 } from './utils.js';
+import { t, normalizeLocale, SUPPORTED_LANGUAGES } from './i18n.js';
+import {
+  initStorage,
+  closeStorage,
+  getGuildConfig,
+  setGuildChannel,
+  setGuildLanguage,
+  setGuildAutoPost,
+  ensureGuildLanguage,
+  deleteGuildConfig,
+  getAllGuildConfigs,
+} from './storage.js';
 
 dotenv.config();
 
-// Créer le client Discord
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 
-// Stocker les messages du jour pour le rappel (un pour chaque type de tournoi)
-const dailyTournamentMessages = {
-  ATA: null,
-  ATB: null,
-  ATC: null
-};
+// Per-guild, per-tournament in-memory tracking of inscription state.
+const guildState = new Map();
 
-// Stocker les réponses des utilisateurs pour chaque tournoi
-const tournamentResponses = {
-  ATA: { present: new Set(), absent: new Set(), late: new Set() },
-  ATB: { present: new Set(), absent: new Set(), late: new Set() },
-  ATC: { present: new Set(), absent: new Set(), late: new Set() }
-};
-
-/**
- * Poste le message du matin pour le tournoi
- * @param {string} type - Le type de tournoi (ATA, ATB, ATC)
- */
-async function postMorningMessage(type = 'ATC') {
-  try {
-    await postTournamentInscriptionMessage(type);
-    console.log(`✅ Message du matin ${type} posté avec succès`);
-  } catch (error) {
-    console.error(`❌ Erreur lors de la publication du message du matin ${type}:`, error);
-  }
-}
-
-/**
- * Récupère les utilisateurs qui ont répondu via les boutons
- * @param {string} type - Le type de tournoi (ATA, ATB, ATC)
- * @returns {Object} - Objet contenant les listes d'utilisateurs
- */
-function getButtonResponses(type) {
-  const presentUsers = Array.from(tournamentResponses[type].present);
-  const lateUsers = Array.from(tournamentResponses[type].late);
-  
-  return { presentUsers, lateUsers };
-}
-
-/**
- * Réinitialise les réponses pour un type de tournoi
- * @param {string} type - Le type de tournoi (ATA, ATB, ATC)
- */
-function resetTournamentResponses(type) {
-  tournamentResponses[type].present.clear();
-  tournamentResponses[type].absent.clear();
-  tournamentResponses[type].late.clear();
-}
-
-/**
- * Formate la liste des participants pour l'affichage dans le message
- * @param {string} type - Le type de tournoi (ATA, ATB, ATC)
- * @returns {string} - Liste formatée des participants
- */
-function formatParticipantsList(type) {
-  const presentUsers = Array.from(tournamentResponses[type].present);
-  const absentUsers = Array.from(tournamentResponses[type].absent);
-  const lateUsers = Array.from(tournamentResponses[type].late);
-  const totalParticipants = presentUsers.length + lateUsers.length;
-  
-  if (totalParticipants === 0 && absentUsers.length === 0) {
-    return '\n\n📋 **Aucune inscription pour le moment.**';
-  }
-  
-  let participantsList = '\n\n📋 **Inscriptions :**\n';
-  
-  if (presentUsers.length > 0) {
-    participantsList += `\n✅ **Présents (${presentUsers.length}) :**\n`;
-    presentUsers.forEach(user => {
-      participantsList += `• ${user}\n`;
-    });
-  }
-  
-  if (lateUsers.length > 0) {
-    participantsList += `\n⏰ **En retard (${lateUsers.length}) :**\n`;
-    lateUsers.forEach(user => {
-      participantsList += `• ${user}\n`;
-    });
-  }
-  
-  if (absentUsers.length > 0) {
-    participantsList += `\n❌ **Absents (${absentUsers.length}) :**\n`;
-    absentUsers.forEach(user => {
-      participantsList += `• ${user}\n`;
-    });
-  }
-  
-  return participantsList;
-}
-
-/**
- * Poste le message de rappel 30 minutes avant le tournoi
- * @param {string} type - Le type de tournoi (ATA, ATB, ATC)
- */
-async function postReminderMessage(type = 'ATC') {
-  try {
-    if (!dailyTournamentMessages[type]) {
-      console.log(`⚠️ Aucun message du matin trouvé pour le tournoi ${type}`);
-      return;
+function ensureGuildState(guildId) {
+  if (!guildState.has(guildId)) {
+    const initial = {};
+    for (const type of Object.keys(TOURNAMENT_TYPES)) {
+      initial[type] = {
+        message: null,
+        present: new Set(),
+        absent: new Set(),
+        late: new Set(),
+      };
     }
-
-    const { presentUsers, lateUsers } = getButtonResponses(type);
-    const message = formatReminderMessage(presentUsers, lateUsers, type, 30);
-
-    const channel = await client.channels.fetch(process.env.CHANNEL_ID);
-    await channel.send(message);
-
-    console.log(`✅ Message de rappel ${type} posté avec succès`);
-  } catch (error) {
-    console.error(`❌ Erreur lors de la publication du message de rappel ${type}:`, error);
+    guildState.set(guildId, initial);
   }
+  return guildState.get(guildId);
 }
 
-/**
- * Vérifie si c'est le moment de poster le rappel pour tous les tournois
- */
-function checkReminderTime() {
-  for (const type of Object.keys(TOURNAMENT_TYPES)) {
-    const tournament = getTodayTournament(type);
-    if (isReminderTime(tournament.date)) {
-      postReminderMessage(type);
-    }
-  }
+function resetTournamentResponses(guildId, type) {
+  const state = ensureGuildState(guildId)[type];
+  state.present.clear();
+  state.absent.clear();
+  state.late.clear();
 }
 
-/**
- * Poste le message d'inscription pour un tournoi et retourne le message
- * @param {string} type - Le type de tournoi (ATA, ATB, ATC)
- * @returns {Message} - Le message posté
- */
-async function postTournamentInscriptionMessage(type) {
-  const channel = await client.channels.fetch(process.env.CHANNEL_ID);
-  if (!channel) {
-    throw new Error('Canal non trouvé');
+function getButtonResponses(guildId, type) {
+  const state = ensureGuildState(guildId)[type];
+  return {
+    presentUsers: Array.from(state.present),
+    lateUsers: Array.from(state.late),
+  };
+}
+
+function buildButtonsRow(type, language) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`present_${type}`)
+      .setLabel(t('btnPresent', language))
+      .setEmoji('✅')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`absent_${type}`)
+      .setLabel(t('btnAbsent', language))
+      .setEmoji('❌')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`late_${type}`)
+      .setLabel(t('btnLate', language))
+      .setEmoji('⏰')
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
+async function postTournamentInscriptionMessage(guildId, type) {
+  const config = await getGuildConfig(guildId);
+  if (!config || !config.channelId) {
+    throw new Error(`No channel configured for guild ${guildId}`);
   }
+  const language = normalizeLocale(config.language);
 
-  const message = formatMorningMessage(type);
-  
-  // Créer les boutons
-  const row = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId(`present_${type}`)
-        .setLabel('Présent')
-        .setEmoji('✅')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`absent_${type}`)
-        .setLabel('Absent')
-        .setEmoji('❌')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`late_${type}`)
-        .setLabel('En retard')
-        .setEmoji('⏰')
-        .setStyle(ButtonStyle.Primary)
-    );
+  const channel = await client.channels.fetch(config.channelId);
+  if (!channel) throw new Error('Channel not found');
 
-  const sentMessage = await channel.send({
-    content: message,
-    components: [row]
-  });
+  const message = formatMorningMessage(type, language);
+  const row = buildButtonsRow(type, language);
 
-  // Réinitialiser les réponses pour ce tournoi
-  resetTournamentResponses(type);
+  const sentMessage = await channel.send({ content: message, components: [row] });
 
-  // Sauvegarder le message pour le rappel
-  dailyTournamentMessages[type] = sentMessage;
+  resetTournamentResponses(guildId, type);
+  ensureGuildState(guildId)[type].message = sentMessage;
 
-  console.log(`✅ Message d'inscription ${type} posté avec succès`);
+  console.log(`✅ Inscription message ${type} posted (guild ${guildId})`);
   return sentMessage;
 }
 
+async function postMorningMessageForAllGuilds(type = 'ATC') {
+  const guilds = await getAllGuildConfigs();
+  for (const [guildId] of guilds) {
+    try {
+      await postTournamentInscriptionMessage(guildId, type);
+    } catch (error) {
+      console.error(`❌ Morning message error ${type} (guild ${guildId}):`, error);
+    }
+  }
+}
+
 /**
- * Gère la commande /rappel
- * @param {Interaction} interaction - L'interaction Discord
+ * Runs every day at the configured morning time. Each guild gets the
+ * tournaments listed in its `autoPost` config posted to its channel.
+ * `MAT` is only posted on the 3rd Saturday of the month.
  */
-async function handleRappelCommand(interaction) {
+async function runDailyAutoPost() {
+  const guilds = await getAllGuildConfigs();
+  const thirdSaturday = isThirdSaturday(new Date());
+  for (const [guildId, config] of guilds) {
+    const types = (config.autoPost || []).filter(
+      tType => TOURNAMENT_TYPES[tType] && (tType !== 'MAT' || thirdSaturday)
+    );
+    for (const tType of types) {
+      try {
+        await postTournamentInscriptionMessage(guildId, tType);
+      } catch (error) {
+        console.error(`❌ Auto-post error ${tType} (guild ${guildId}):`, error);
+      }
+    }
+  }
+}
+
+async function postReminderMessageForAllGuilds(type) {
+  const guilds = await getAllGuildConfigs();
+  for (const [guildId, config] of guilds) {
+    const state = ensureGuildState(guildId)[type];
+    if (!state.message) continue;
+    try {
+      const language = normalizeLocale(config.language);
+      const { presentUsers, lateUsers } = getButtonResponses(guildId, type);
+      const message = formatReminderMessage(presentUsers, lateUsers, type, language);
+      const channel = await client.channels.fetch(config.channelId);
+      await channel.send(message);
+      console.log(`✅ Reminder ${type} posted (guild ${guildId})`);
+    } catch (error) {
+      console.error(`❌ Reminder error ${type} (guild ${guildId}):`, error);
+    }
+  }
+}
+
+function checkReminderTime() {
+  for (const type of Object.keys(TOURNAMENT_TYPES)) {
+    if (type === 'MAT' && !isThirdSaturday(new Date())) continue;
+    const tournament = getTodayTournament(type);
+    if (isReminderTime(tournament.date)) {
+      postReminderMessageForAllGuilds(type);
+    }
+  }
+}
+
+// -- Slash command handlers ------------------------------------------------
+
+async function handleReminderCommand(interaction) {
+  const userLang = normalizeLocale(interaction.locale);
   try {
     await interaction.deferReply();
-
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.editReply(t('setupOnlyInGuild', userLang));
+      return;
+    }
+    const config = await getGuildConfig(guildId);
+    if (!config || !config.channelId) {
+      await interaction.editReply(t('configMissing', userLang));
+      return;
+    }
+    const guildLang = normalizeLocale(config.language);
     const type = interaction.options.getString('type') || 'ATC';
-    
-    // Si le message d'inscription n'existe pas encore, le poster
-    if (!dailyTournamentMessages[type]) {
-      await postTournamentInscriptionMessage(type);
-      await interaction.followUp(`📝 Message d'inscription pour le tournoi ${type} posté automatiquement.`);
+
+    if (!ensureGuildState(guildId)[type].message) {
+      await postTournamentInscriptionMessage(guildId, type);
+      await interaction.followUp(t('autoPostedInscription', userLang, { type }));
     }
 
-    const { presentUsers, lateUsers } = getButtonResponses(type);
-    const message = formatReminderMessage(presentUsers, lateUsers, type);
-
+    const { presentUsers, lateUsers } = getButtonResponses(guildId, type);
+    const message = formatReminderMessage(presentUsers, lateUsers, type, guildLang);
     await interaction.editReply(message);
   } catch (error) {
-    console.error('❌ Erreur lors de la commande /rappel:', error);
-    await interaction.editReply('❌ Une erreur est survenue lors de l\'exécution de la commande.');
+    console.error('❌ /reminder error:', error);
+    await interaction.editReply(t('errorGeneric', userLang));
   }
 }
 
-/**
- * Gère les commandes /ata et /atb
- * @param {Interaction} interaction - L'interaction Discord
- * @param {string} type - Le type de tournoi (ATA ou ATB)
- */
 async function handleTournamentCommand(interaction, type) {
+  const userLang = normalizeLocale(interaction.locale);
   try {
     await interaction.deferReply();
-
-    await postTournamentInscriptionMessage(type);
-
-    await interaction.editReply(`✅ Message pour le tournoi ${type} posté avec succès !`);
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.editReply(t('setupOnlyInGuild', userLang));
+      return;
+    }
+    const config = await getGuildConfig(guildId);
+    if (!config || !config.channelId) {
+      await interaction.editReply(t('configMissing', userLang));
+      return;
+    }
+    await postTournamentInscriptionMessage(guildId, type);
+    await interaction.editReply(t('tournamentPosted', userLang, { type }));
   } catch (error) {
-    console.error(`❌ Erreur lors de la commande /${type.toLowerCase()}:`, error);
-    await interaction.editReply('❌ Une erreur est survenue lors de l\'exécution de la commande.');
+    console.error(`❌ /${type.toLowerCase()} error:`, error);
+    await interaction.editReply(t('errorGeneric', userLang));
   }
 }
 
-// Gestion des interactions (commandes slash et boutons)
-client.on('interactionCreate', async interaction => {
-  // Gestion des boutons
+async function handleSetupCommand(interaction) {
+  const userLang = normalizeLocale(interaction.locale);
+  try {
+    if (!interaction.guildId) {
+      await interaction.reply({ content: t('setupOnlyInGuild', userLang), ephemeral: true });
+      return;
+    }
+    if (
+      !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) &&
+      !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+    ) {
+      await interaction.reply({ content: t('setupNoPermission', userLang), ephemeral: true });
+      return;
+    }
+
+    const channel = interaction.options.getChannel('channel');
+    const languageOpt = interaction.options.getString('language');
+    const autoPostFlags = {
+      ATA: interaction.options.getBoolean('ata'),
+      ATB: interaction.options.getBoolean('atb'),
+      ATC: interaction.options.getBoolean('atc'),
+      MAT: interaction.options.getBoolean('mat'),
+    };
+    const autoPostProvided = Object.values(autoPostFlags).some(v => v !== null);
+
+    const replies = [];
+    if (channel) {
+      await setGuildChannel(interaction.guildId, channel.id);
+      replies.push(t('setupSuccess', userLang, { channel: `<#${channel.id}>` }));
+    }
+    if (languageOpt) {
+      await setGuildLanguage(interaction.guildId, languageOpt);
+      replies.push(t('setupLanguageSet', userLang, { language: normalizeLocale(languageOpt) }));
+    }
+    if (autoPostProvided) {
+      const current = (await getGuildConfig(interaction.guildId))?.autoPost || [];
+      const next = new Set(current);
+      for (const [type, value] of Object.entries(autoPostFlags)) {
+        if (value === true) next.add(type);
+        else if (value === false) next.delete(type);
+      }
+      const ordered = ['ATA', 'ATB', 'ATC', 'MAT'].filter(t => next.has(t));
+      await setGuildAutoPost(interaction.guildId, ordered);
+      replies.push(
+        ordered.length > 0
+          ? t('setupAutoPostSet', userLang, { list: ordered.join(', ') })
+          : t('setupAutoPostEmpty', userLang)
+      );
+    }
+
+    if (replies.length === 0) {
+      const config = await getGuildConfig(interaction.guildId);
+      const text = config && config.channelId
+        ? t('configCurrent', userLang, {
+            channel: `<#${config.channelId}>`,
+            language: normalizeLocale(config.language),
+            autoPost: config.autoPost?.length
+              ? config.autoPost.join(', ')
+              : t('autoPostNone', userLang),
+          })
+        : t('configMissing', userLang);
+      await interaction.reply({ content: text, ephemeral: true });
+      return;
+    }
+
+    await interaction.reply({ content: replies.join('\n'), ephemeral: true });
+  } catch (error) {
+    console.error('❌ /setup error:', error);
+    await interaction.reply({ content: t('errorGeneric', userLang), ephemeral: true });
+  }
+}
+
+async function handleConfigCommand(interaction) {
+  const userLang = normalizeLocale(interaction.locale);
+  if (!interaction.guildId) {
+    await interaction.reply({ content: t('setupOnlyInGuild', userLang), ephemeral: true });
+    return;
+  }
+  const config = await getGuildConfig(interaction.guildId);
+  const text = config && config.channelId
+    ? t('configCurrent', userLang, {
+        channel: `<#${config.channelId}>`,
+        language: normalizeLocale(config.language),
+        autoPost: config.autoPost?.length
+          ? config.autoPost.join(', ')
+          : t('autoPostNone', userLang),
+      })
+    : t('configMissing', userLang);
+  await interaction.reply({ content: text, ephemeral: true });
+}
+
+// -- Interaction dispatcher ------------------------------------------------
+
+client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isButton()) {
+    const userLang = normalizeLocale(interaction.locale);
     try {
       const [action, type] = interaction.customId.split('_');
-      
       if (!['present', 'absent', 'late'].includes(action) || !TOURNAMENT_TYPES[type]) {
         return;
       }
+      const guildId = interaction.guildId;
+      if (!guildId) return;
 
       const username = interaction.user.displayName || interaction.user.username;
+      const state = ensureGuildState(guildId)[type];
 
-      // Retirer l'utilisateur de toutes les catégories
-      tournamentResponses[type].present.delete(username);
-      tournamentResponses[type].absent.delete(username);
-      tournamentResponses[type].late.delete(username);
+      state.present.delete(username);
+      state.absent.delete(username);
+      state.late.delete(username);
+      state[action].add(username);
 
-      // Ajouter l'utilisateur à la catégorie appropriée
-      tournamentResponses[type][action].add(username);
+      const replyKey =
+        action === 'present' ? 'replyPresent' : action === 'absent' ? 'replyAbsent' : 'replyLate';
+      await interaction.reply({ content: t(replyKey, userLang), ephemeral: true });
 
-      let responseMessage = '';
-      switch(action) {
-        case 'present':
-          responseMessage = '✅ Vous êtes inscrit comme présent !';
-          break;
-        case 'absent':
-          responseMessage = '❌ Vous êtes marqué comme absent.';
-          break;
-        case 'late':
-          responseMessage = '⏰ Vous êtes inscrit comme en retard.';
-          break;
-      }
-
-      await interaction.reply({ content: responseMessage, ephemeral: true });
-
-      // Mettre à jour le message original avec la liste des participants
-      if (dailyTournamentMessages[type]) {
+      if (state.message) {
         try {
-          const baseMessage = formatMorningMessage(type);
-          const participantsList = formatParticipantsList(type);
-          const updatedContent = baseMessage + participantsList;
-
-          // Récréer les boutons pour le message mis à jour
-          const row = new ActionRowBuilder()
-            .addComponents(
-              new ButtonBuilder()
-                .setCustomId(`present_${type}`)
-                .setLabel('Présent')
-                .setEmoji('✅')
-                .setStyle(ButtonStyle.Success),
-              new ButtonBuilder()
-                .setCustomId(`absent_${type}`)
-                .setLabel('Absent')
-                .setEmoji('❌')
-                .setStyle(ButtonStyle.Secondary),
-              new ButtonBuilder()
-                .setCustomId(`late_${type}`)
-                .setLabel('En retard')
-                .setEmoji('⏰')
-                .setStyle(ButtonStyle.Primary)
-            );
-
-          await dailyTournamentMessages[type].edit({
-            content: updatedContent,
-            components: [row]
+          const config = await getGuildConfig(guildId);
+          const guildLang = normalizeLocale(config?.language);
+          const baseMessage = formatMorningMessage(type, guildLang);
+          const participantsList = formatParticipantsBlock(state, guildLang);
+          await state.message.edit({
+            content: baseMessage + participantsList,
+            components: [buildButtonsRow(type, guildLang)],
           });
         } catch (editError) {
-          console.error('❌ Erreur lors de la mise à jour du message:', editError);
+          console.error('❌ Failed to update inscription message:', editError);
         }
       }
     } catch (error) {
-      console.error('❌ Erreur lors du traitement du bouton:', error);
-      await interaction.reply({ content: '❌ Une erreur est survenue.', ephemeral: true });
+      console.error('❌ Button error:', error);
+      try {
+        await interaction.reply({
+          content: t('errorButton', normalizeLocale(interaction.locale)),
+          ephemeral: true,
+        });
+      } catch {}
     }
     return;
   }
 
-  // Gestion des commandes slash
   if (!interaction.isChatInputCommand()) return;
 
   switch (interaction.commandName) {
-    case 'rappel':
-      await handleRappelCommand(interaction);
+    case 'reminder':
+      await handleReminderCommand(interaction);
       break;
     case 'ata':
       await handleTournamentCommand(interaction, 'ATA');
@@ -328,47 +383,139 @@ client.on('interactionCreate', async interaction => {
     case 'atb':
       await handleTournamentCommand(interaction, 'ATB');
       break;
+    case 'atc':
+      await handleTournamentCommand(interaction, 'ATC');
+      break;
+    case 'mat':
+      await handleTournamentCommand(interaction, 'MAT');
+      break;
+    case 'setup':
+      await handleSetupCommand(interaction);
+      break;
+    case 'config':
+      await handleConfigCommand(interaction);
+      break;
   }
 });
 
-// Événement de connexion du bot
-client.on('ready', () => {
-  console.log('🤖 Bot Discord connecté !');
-  console.log(`📝 Connecté en tant que ${client.user.tag}`);
-  
-  // Récupérer l'heure du message du matin depuis .env
+// -- Guild lifecycle --------------------------------------------------------
+
+client.on(Events.GuildCreate, async guild => {
+  console.log(`➕ Joined guild ${guild.name} (${guild.id})`);
+  const lang = normalizeLocale(guild.preferredLocale);
+  try {
+    await ensureGuildLanguage(guild.id, lang);
+  } catch (error) {
+    console.error('❌ Failed to initialize guild config:', error);
+  }
+
+  const content = `${t('welcomeTitle', lang)}\n\n${t('welcomeBody', lang)}`;
+
+  // Try to greet via the system channel; fall back to the first accessible
+  // text channel; finally DM the owner.
+  const me = guild.members.me;
+  const systemChannel = guild.systemChannel;
+  if (systemChannel?.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages)) {
+    try {
+      await systemChannel.send(content);
+      return;
+    } catch (error) {
+      console.error('❌ Welcome to system channel failed:', error);
+    }
+  }
+
+  const fallback = guild.channels.cache.find(
+    c =>
+      c.isTextBased?.() &&
+      c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages)
+  );
+  if (fallback) {
+    try {
+      await fallback.send(content);
+      return;
+    } catch (error) {
+      console.error('❌ Welcome to fallback channel failed:', error);
+    }
+  }
+
+  try {
+    const owner = await guild.fetchOwner();
+    await owner.send(content);
+  } catch (error) {
+    console.error('❌ Welcome DM to owner failed:', error);
+  }
+});
+
+client.on(Events.GuildDelete, async guild => {
+  console.log(`➖ Removed from guild ${guild.name} (${guild.id})`);
+  try {
+    await deleteGuildConfig(guild.id);
+    guildState.delete(guild.id);
+  } catch (error) {
+    console.error('❌ Failed to clean up guild config:', error);
+  }
+});
+
+// -- Ready ------------------------------------------------------------------
+
+client.on(Events.ClientReady, () => {
+  console.log('🤖 Discord bot connected!');
+  console.log(`📝 Logged in as ${client.user.tag}`);
+  console.log(`🌐 Supported languages: ${SUPPORTED_LANGUAGES.join(', ')}`);
+
   const morningTime = process.env.MORNING_POST_TIME || '09:00';
   const [hour, minute] = morningTime.split(':');
-  
-  console.log(`⏰ Message du matin AT C programmé à ${morningTime} (heure française)`);
-  console.log(`⏰ Vérification du rappel toutes les minutes`);
-  console.log(`💬 Commandes disponibles: /rappel, /ata, /atb`);
-  
-  // Programmer le message du matin pour AT C uniquement (heure française)
-  // Format cron: minute heure * * jour_semaine
-  cron.schedule(`${minute} ${hour} * * *`, () => {
-    console.log('📅 Déclenchement du message du matin AT C...');
-    postMorningMessage('ATC');
-  }, {
-    timezone: 'Europe/Paris'
-  });
 
-  // Vérifier toutes les minutes si c'est l'heure du rappel pour tous les tournois
-  cron.schedule('* * * * *', () => {
-    checkReminderTime();
-  }, {
-    timezone: 'Europe/Paris'
-  });
+  console.log(`⏰ Daily auto-post scheduled at ${morningTime} (Europe/Paris) — per-guild types configured via /setup`);
+  console.log(`⏰ Reminder check runs every minute`);
+  console.log(`💬 Available commands: /reminder, /ata, /atb, /atc, /mat, /setup, /config`);
+
+  cron.schedule(
+    `${minute} ${hour} * * *`,
+    () => {
+      console.log('📅 Running daily auto-post...');
+      runDailyAutoPost();
+    },
+    { timezone: 'Europe/Paris' }
+  );
+
+  cron.schedule(
+    '* * * * *',
+    () => {
+      checkReminderTime();
+    },
+    { timezone: 'Europe/Paris' }
+  );
 });
 
-// Gestion des erreurs
-client.on('error', (error) => {
-  console.error('❌ Erreur Discord:', error);
+client.on('error', error => {
+  console.error('❌ Discord error:', error);
 });
 
-process.on('unhandledRejection', (error) => {
-  console.error('❌ Erreur non gérée:', error);
+process.on('unhandledRejection', error => {
+  console.error('❌ Unhandled rejection:', error);
 });
 
-// Connexion du bot
-client.login(process.env.DISCORD_TOKEN);
+async function shutdown(signal) {
+  console.log(`👋 Received ${signal}, shutting down...`);
+  try {
+    await client.destroy();
+    await closeStorage();
+  } finally {
+    process.exit(0);
+  }
+}
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// -- Boot --------------------------------------------------------------------
+
+(async () => {
+  try {
+    await initStorage();
+    await client.login(process.env.DISCORD_TOKEN);
+  } catch (error) {
+    console.error('❌ Fatal startup error:', error);
+    process.exit(1);
+  }
+})();

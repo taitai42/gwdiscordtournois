@@ -1,27 +1,52 @@
 version: '3.8'
 
 services:
-  bot:
-    build: .
-    container_name: gw-tournois-bot
+  mysql:
+    image: mysql:8.0
+    container_name: gw-tournois-mysql
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
-      - NODE_ENV=production
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpass}
+      - MYSQL_DATABASE=${DB_NAME:-gw_tournois}
+      - MYSQL_USER=${DB_USER:-bot}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-botpass}
       - TZ=Europe/Paris
     volumes:
-      # Monter le fichier .env pour les mises à jour de configuration
-      - ./.env:/app/.env:ro
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    # Healthcheck optionnel (le bot n'expose pas de port HTTP par défaut)
-    # healthcheck:
-    #   test: ["CMD", "node", "-e", "process.exit(0)"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 40s
+
+  bot:
+    build: .
+    container_name: gw-tournois-bot
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TZ=Europe/Paris
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=${DB_USER:-bot}
+      - DB_PASSWORD=${DB_PASSWORD:-botpass}
+      - DB_NAME=${DB_NAME:-gw_tournois}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mysql_data:

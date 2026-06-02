@@ -32,6 +32,15 @@ export const TOURNAMENT_SCHEDULE = {
   },
 };
 
+// Tournoi mensuel (mAT) : 3e samedi du mois à 16:00 UTC
+export const MONTHLY_TOURNAMENT = {
+  MAT: {
+    utcHour: 16,
+    weekday: 6, // Samedi
+    weekOfMonth: 3, // 3e occurrence du jour dans le mois
+  },
+};
+
 // Temps avant le tournoi pour le rappel (en minutes)
 export const REMINDER_MINUTES_BEFORE = 30;
 
@@ -39,12 +48,15 @@ export const REMINDER_MINUTES_BEFORE = 30;
 export const TOURNAMENT_TYPES = {
   ATA: 'ATA',
   ATB: 'ATB',
-  ATC: 'ATC'
+  ATC: 'ATC',
+  MAT: 'MAT',
 };
 
 // Noms complets des tournois
 export const TOURNAMENT_NAMES = {
   ATA: 'AT A (Matin)',
   ATB: 'AT B (Après-midi)',
-  ATC: 'AT C (Soir)'
+  ATC: 'AT C (Soir)',
+  MAT: 'mAT (Mensuel)',
 };
+
