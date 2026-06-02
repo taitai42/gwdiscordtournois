@@ -95,6 +95,45 @@ export function isReminderTime(tournamentDate) {
   return now >= reminderTime && now < new Date(reminderTime.getTime() + 60000);
 }
 
+/**
+ * Returns the next future occurrence of a given tournament type. Useful for
+ * triggering announcements N hours before the tournament starts, because
+ * `getTodayTournament` may return a time that has already passed today
+ * (e.g. AT A which runs in the early UTC hours).
+ */
+export function getNextTournament(type) {
+  if (type === 'MAT') {
+    return getTournamentTime(new Date(), 'MAT');
+  }
+  const now = new Date();
+  for (let offset = 0; offset < 8; offset++) {
+    const probe = new Date(now);
+    probe.setUTCDate(probe.getUTCDate() + offset);
+    const t = getTournamentTime(probe, type);
+    if (t.date.getTime() > now.getTime()) return t;
+  }
+  return getTournamentTime(now, type);
+}
+
+/**
+ * Returns the moment `hoursBefore` hours before the tournament starts.
+ */
+export function getAutoPostTime(tournamentDate, hoursBefore = 7) {
+  const d = new Date(tournamentDate);
+  d.setHours(d.getHours() - hoursBefore);
+  return d;
+}
+
+/**
+ * True if the current minute is exactly `hoursBefore` hours before the
+ * tournament starts (i.e. we are in the [T-hoursBefore, T-hoursBefore+60s) window).
+ */
+export function isAutoPostTime(tournamentDate, hoursBefore = 7) {
+  const now = new Date();
+  const target = getAutoPostTime(tournamentDate, hoursBefore);
+  return now >= target && now < new Date(target.getTime() + 60000);
+}
+
 export function getTimeUntilTournament(tournamentDate) {
   const now = new Date();
   const diff = tournamentDate - now;

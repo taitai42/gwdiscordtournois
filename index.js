@@ -15,7 +15,9 @@ import {
   formatReminderMessage,
   formatParticipantsBlock,
   getTodayTournament,
+  getNextTournament,
   isReminderTime,
+  isAutoPostTime,
   isThirdSaturday,
 } from './utils.js';
 import { t, normalizeLocale, SUPPORTED_LANGUAGES } from './i18n.js';
@@ -124,19 +126,30 @@ async function postMorningMessageForAllGuilds(type = 'ATC') {
   }
 }
 
+// Number of hours before a tournament at which the auto-post fires.
+const AUTO_POST_HOURS_BEFORE = 7;
+
 /**
- * Runs every day at the configured morning time. Each guild gets the
- * tournaments listed in its `autoPost` config posted to its channel.
+ * Runs every minute. For each guild, posts the inscription message for any
+ * auto-selected tournament whose start time is exactly 7 hours away.
  * `MAT` is only posted on the 3rd Saturday of the month.
  */
-async function runDailyAutoPost() {
-  const guilds = await getAllGuildConfigs();
+async function checkAutoPostTime() {
+  let guilds;
+  try {
+    guilds = await getAllGuildConfigs();
+  } catch (error) {
+    console.error('❌ Auto-post lookup failed:', error);
+    return;
+  }
   const thirdSaturday = isThirdSaturday(new Date());
   for (const [guildId, config] of guilds) {
     const types = (config.autoPost || []).filter(
       tType => TOURNAMENT_TYPES[tType] && (tType !== 'MAT' || thirdSaturday)
     );
     for (const tType of types) {
+      const next = getNextTournament(tType);
+      if (!isAutoPostTime(next.date, AUTO_POST_HOURS_BEFORE)) continue;
       try {
         await postTournamentInscriptionMessage(guildId, tType);
       } catch (error) {
@@ -463,25 +476,14 @@ client.on(Events.ClientReady, () => {
   console.log(`📝 Logged in as ${client.user.tag}`);
   console.log(`🌐 Supported languages: ${SUPPORTED_LANGUAGES.join(', ')}`);
 
-  const morningTime = process.env.MORNING_POST_TIME || '09:00';
-  const [hour, minute] = morningTime.split(':');
-
-  console.log(`⏰ Daily auto-post scheduled at ${morningTime} (Europe/Paris) — per-guild types configured via /setup`);
-  console.log(`⏰ Reminder check runs every minute`);
+  console.log(`⏰ Auto-post fires ${AUTO_POST_HOURS_BEFORE}h before each selected tournament`);
+  console.log(`⏰ Reminder fires 30 min before each tournament`);
   console.log(`💬 Available commands: /reminder, /ata, /atb, /atc, /mat, /setup, /config`);
-
-  cron.schedule(
-    `${minute} ${hour} * * *`,
-    () => {
-      console.log('📅 Running daily auto-post...');
-      runDailyAutoPost();
-    },
-    { timezone: 'Europe/Paris' }
-  );
 
   cron.schedule(
     '* * * * *',
     () => {
+      checkAutoPostTime();
       checkReminderTime();
     },
     { timezone: 'Europe/Paris' }
