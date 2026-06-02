@@ -197,8 +197,11 @@ function relativeTag(unix) {
  * @param {string} [language]
  */
 export function formatMorningMessage(type = 'ATC', language = DEFAULT_LANGUAGE) {
-  const tournament = getTodayTournament(type);
-  const dayName = getDayName(new Date(), language);
+  // Always reference the next *upcoming* occurrence — today's slot may already
+  // have passed by the time this is rendered (e.g. ATA usually runs in the
+  // early UTC hours, but the announcement fires N hours before tomorrow's).
+  const tournament = getNextTournament(type);
+  const dayName = getDayName(tournament.date, language);
 
   const title = t('morningTitle', language, {
     type,
@@ -239,7 +242,7 @@ export function formatReminderMessage(
   type = 'ATC',
   language = DEFAULT_LANGUAGE
 ) {
-  const tournament = getTodayTournament(type);
+  const tournament = getNextTournament(type);
   const totalParticipants = presentUsers.length + lateUsers.length;
 
   const title = t('reminderTitle', language, { type });
