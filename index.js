@@ -6,6 +6,10 @@ import {
   ButtonStyle,
   PermissionFlagsBits,
   Events,
+  ChannelSelectMenuBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  ChannelType,
 } from 'discord.js';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
@@ -91,6 +95,49 @@ function buildButtonsRow(type, language) {
       .setEmoji('⏰')
       .setStyle(ButtonStyle.Primary)
   );
+}
+
+/**
+ * Build the interactive setup wizard (channel picker + tournaments multi-select).
+ * Used by the welcome message and by `/setup` invoked without arguments.
+ */
+function buildSetupWizard(language, current = { autoPost: [] }) {
+  const content =
+    `${t('setupWizardTitle', language)}\n\n${t('setupWizardBody', language)}`;
+
+  const channelRow = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId('setup_channel')
+      .setPlaceholder(t('setupSelectChannelPlaceholder', language))
+      .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+      .setMinValues(1)
+      .setMaxValues(1)
+  );
+
+  const optionDefs = [
+    { value: 'ATA', labelKey: 'setupOptionAta', emoji: '🌅' },
+    { value: 'ATB', labelKey: 'setupOptionAtb', emoji: '☀️' },
+    { value: 'ATC', labelKey: 'setupOptionAtc', emoji: '🌙' },
+    { value: 'MAT', labelKey: 'setupOptionMat', emoji: '🏆' },
+  ];
+  const autoPostRow = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('setup_autopost')
+      .setPlaceholder(t('setupSelectAutoPostPlaceholder', language))
+      .setMinValues(0)
+      .setMaxValues(optionDefs.length)
+      .addOptions(
+        optionDefs.map(o =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(t(o.labelKey, language))
+            .setValue(o.value)
+            .setEmoji(o.emoji)
+            .setDefault((current.autoPost || []).includes(o.value))
+        )
+      )
+  );
+
+  return { content, components: [channelRow, autoPostRow] };
 }
 
 async function postTournamentInscriptionMessage(guildId, type) {
@@ -293,17 +340,11 @@ async function handleSetupCommand(interaction) {
     }
 
     if (replies.length === 0) {
+      // No options provided — show the interactive wizard so admins can
+      // pick channel + tournaments with select menus instead of typing.
       const config = await getGuildConfig(interaction.guildId);
-      const text = config && config.channelId
-        ? t('configCurrent', userLang, {
-            channel: `<#${config.channelId}>`,
-            language: normalizeLocale(config.language),
-            autoPost: config.autoPost?.length
-              ? config.autoPost.join(', ')
-              : t('autoPostNone', userLang),
-          })
-        : t('configMissing', userLang);
-      await interaction.reply({ content: text, ephemeral: true });
+      const wizard = buildSetupWizard(userLang, { autoPost: config?.autoPost || [] });
+      await interaction.reply({ ...wizard, ephemeral: true });
       return;
     }
 
@@ -336,6 +377,58 @@ async function handleConfigCommand(interaction) {
 // -- Interaction dispatcher ------------------------------------------------
 
 client.on(Events.InteractionCreate, async interaction => {
+  // Interactive setup wizard: channel picker + tournaments multi-select.
+  if (interaction.isChannelSelectMenu() || interaction.isStringSelectMenu()) {
+    if (
+      interaction.customId !== 'setup_channel' &&
+      interaction.customId !== 'setup_autopost'
+    ) {
+      // Not one of our setup menus — ignore.
+    } else {
+      const userLang = normalizeLocale(interaction.locale);
+      try {
+        if (!interaction.guildId) {
+          await interaction.reply({ content: t('setupOnlyInGuild', userLang), ephemeral: true });
+          return;
+        }
+        if (
+          !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+        ) {
+          await interaction.reply({ content: t('setupNoPermission', userLang), ephemeral: true });
+          return;
+        }
+
+        if (interaction.customId === 'setup_channel') {
+          const channelId = interaction.values[0];
+          await setGuildChannel(interaction.guildId, channelId);
+          await interaction.reply({
+            content: t('setupSuccess', userLang, { channel: `<#${channelId}>` }),
+            ephemeral: true,
+          });
+        } else {
+          const ordered = ['ATA', 'ATB', 'ATC', 'MAT'].filter(t =>
+            interaction.values.includes(t)
+          );
+          await setGuildAutoPost(interaction.guildId, ordered);
+          await interaction.reply({
+            content:
+              ordered.length > 0
+                ? t('setupAutoPostSet', userLang, { list: ordered.join(', ') })
+                : t('setupAutoPostEmpty', userLang),
+            ephemeral: true,
+          });
+        }
+      } catch (error) {
+        console.error('❌ Setup select error:', error);
+        try {
+          await interaction.reply({ content: t('errorGeneric', userLang), ephemeral: true });
+        } catch {}
+      }
+      return;
+    }
+  }
+
   if (interaction.isButton()) {
     const userLang = normalizeLocale(interaction.locale);
     try {
@@ -422,15 +515,20 @@ client.on(Events.GuildCreate, async guild => {
     console.error('❌ Failed to initialize guild config:', error);
   }
 
-  const content = `${t('welcomeTitle', lang)}\n\n${t('welcomeBody', lang)}`;
+  const wizard = buildSetupWizard(lang, { autoPost: ['ATC'] });
+  const payload = {
+    content: `${t('welcomeTitle', lang)}\n\n${t('welcomeBody', lang)}\n\n${wizard.content}`,
+    components: wizard.components,
+  };
 
   // Try to greet via the system channel; fall back to the first accessible
-  // text channel; finally DM the owner.
+  // text channel; finally DM the owner (DMs cannot include guild components,
+  // so we fall back to a plain message there).
   const me = guild.members.me;
   const systemChannel = guild.systemChannel;
   if (systemChannel?.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages)) {
     try {
-      await systemChannel.send(content);
+      await systemChannel.send(payload);
       return;
     } catch (error) {
       console.error('❌ Welcome to system channel failed:', error);
@@ -444,7 +542,7 @@ client.on(Events.GuildCreate, async guild => {
   );
   if (fallback) {
     try {
-      await fallback.send(content);
+      await fallback.send(payload);
       return;
     } catch (error) {
       console.error('❌ Welcome to fallback channel failed:', error);
@@ -453,7 +551,9 @@ client.on(Events.GuildCreate, async guild => {
 
   try {
     const owner = await guild.fetchOwner();
-    await owner.send(content);
+    await owner.send({
+      content: `${t('welcomeTitle', lang)}\n\n${t('welcomeBody', lang)}`,
+    });
   } catch (error) {
     console.error('❌ Welcome DM to owner failed:', error);
   }

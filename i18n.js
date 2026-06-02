@@ -57,10 +57,19 @@ const translations = {
     // Welcome message sent on guildCreate
     welcomeTitle: '👋 Merci d\'avoir ajouté le bot Tournois Guild Wars !',
     welcomeBody:
-      'Pour commencer, un administrateur doit exécuter :\n' +
-      '`/setup channel:#salon` pour choisir le canal des annonces de tournois.\n\n' +
-      'Optionnel : `/setup language:fr` ou `language:en` pour la langue des messages publics.\n' +
-      'Tapez `/config` à tout moment pour voir la configuration actuelle.',
+      'Pour commencer, un administrateur peut configurer le bot en deux clics ci-dessous,\n' +
+      'ou bien utiliser la commande `/setup` à tout moment.',
+
+    // Interactive setup wizard
+    setupWizardTitle: '⚙️ **Configuration du bot Tournois Guild Wars**',
+    setupWizardBody:
+      'Choisissez le canal des annonces et les tournois à publier automatiquement (7h avant chaque début).',
+    setupSelectChannelPlaceholder: 'Choisir le canal des annonces…',
+    setupSelectAutoPostPlaceholder: 'Choisir les tournois postés automatiquement…',
+    setupOptionAta: 'AT A — Matin',
+    setupOptionAtb: 'AT B — Après-midi',
+    setupOptionAtc: 'AT C — Soir',
+    setupOptionMat: 'mAT — Mensuel (3e samedi)',
 
     // Slash command descriptions (used by deploy-commands.js)
     cmdReminderDesc: 'Affiche le rappel du tournoi avec le temps restant et la liste des inscrits',
@@ -121,10 +130,18 @@ const translations = {
 
     welcomeTitle: '👋 Thanks for adding the Guild Wars Tournaments bot!',
     welcomeBody:
-      'To get started, an administrator must run:\n' +
-      '`/setup channel:#channel` to choose the tournament announcement channel.\n\n' +
-      'Optional: `/setup language:fr` or `language:en` to pick the public message language.\n' +
-      'Use `/config` at any time to see the current configuration.',
+      'To get started, an administrator can configure the bot in two clicks below,\n' +
+      'or run `/setup` at any time.',
+
+    setupWizardTitle: '⚙️ **Guild Wars Tournaments bot — configuration**',
+    setupWizardBody:
+      'Pick the announcements channel and the tournaments to post automatically (7h before each start).',
+    setupSelectChannelPlaceholder: 'Pick the announcements channel…',
+    setupSelectAutoPostPlaceholder: 'Pick which tournaments are posted automatically…',
+    setupOptionAta: 'AT A — Morning',
+    setupOptionAtb: 'AT B — Afternoon',
+    setupOptionAtc: 'AT C — Evening',
+    setupOptionMat: 'mAT — Monthly (3rd Saturday)',
 
     cmdReminderDesc: 'Show the tournament reminder with remaining time and the list of attendees',
     cmdReminderTypeDesc: 'Tournament type',
