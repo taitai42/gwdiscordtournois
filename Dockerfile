@@ -7,8 +7,8 @@ WORKDIR /app
 # Copier les fichiers de dépendances
 COPY package*.json ./
 
-# Installer les dépendances
-RUN npm ci --only=production
+# Install production dependencies from the lockfile for reproducible builds.
+RUN npm ci --omit=dev --no-audit --no-fund
 
 # Copier le code source
 COPY . .
