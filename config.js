@@ -54,9 +54,9 @@ export const TOURNAMENT_TYPES = {
 
 // Noms complets des tournois
 export const TOURNAMENT_NAMES = {
-  ATA: 'AT A (Matin)',
-  ATB: 'AT B (Après-midi)',
-  ATC: 'AT C (Soir)',
-  MAT: 'mAT (Mensuel)',
+  ATA: 'AT A',
+  ATB: 'AT B',
+  ATC: 'AT C',
+  MAT: 'mAT',
 };
 
