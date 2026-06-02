@@ -1,9 +1,9 @@
 // Internationalization helpers
 // Discord sends a locale on each interaction (e.g. "fr", "en-US", "es-ES").
-// We normalize that to a short language code and fall back to French (the
-// original language of this bot) if a locale is unsupported.
+// We normalize that to a short language code and fall back to English (the
+// most common locale) if a locale is unsupported.
 
-const DEFAULT_LANGUAGE = 'fr';
+const DEFAULT_LANGUAGE = 'en';
 const SUPPORTED_LANGUAGES = ['fr', 'en'];
 
 const translations = {
@@ -39,13 +39,13 @@ const translations = {
     // Setup / config
     setupSuccess: '✅ Canal des tournois configuré sur {channel}.',
     setupLanguageSet: '✅ Langue par défaut du serveur définie sur **{language}**.',
-    setupAutoPostSet: '✅ Tournois postés automatiquement 7h avant leur début : **{list}**.',
+    setupAutoPostSet: '✅ Tournois postés automatiquement : **{list}**.',
     setupAutoPostEmpty: '✅ Aucun tournoi ne sera posté automatiquement.',
     setupNoPermission: '❌ Vous devez être administrateur pour utiliser cette commande.',
     setupOnlyInGuild: '❌ Cette commande doit être utilisée dans un serveur.',
     configMissing: '⚠️ Aucun canal n\'est configuré. Utilisez `/setup channel:#salon`.',
     configCurrent:
-      '⚙️ **Configuration actuelle**\nCanal : {channel}\nLangue : **{language}**\nTournois automatiques : **{autoPost}**',
+      '⚙️ **Configuration actuelle**\nCanal : {channel}\nLangue : **{language}**\nTournois automatiques : **{autoPost}**\nCalendrier : **{schedule}**',
     autoPostNone: 'aucun',
 
     // Errors
@@ -63,13 +63,26 @@ const translations = {
     // Interactive setup wizard
     setupWizardTitle: '⚙️ **Configuration du bot Tournois Guild Wars**',
     setupWizardBody:
-      'Choisissez le canal des annonces et les tournois à publier automatiquement (7h avant chaque début).',
+      'Tout est pré-rempli avec des valeurs raisonnables — ajustez si besoin, chaque sélection est enregistrée immédiatement.',
     setupSelectChannelPlaceholder: 'Choisir le canal des annonces…',
     setupSelectAutoPostPlaceholder: 'Choisir les tournois postés automatiquement…',
+    setupSelectLanguagePlaceholder: 'Langue des messages publics…',
+    setupSelectSchedulePlaceholder: 'Quand poster les annonces…',
     setupOptionAta: 'AT A — Matin',
     setupOptionAtb: 'AT B — Après-midi',
     setupOptionAtc: 'AT C — Soir',
     setupOptionMat: 'mAT — Mensuel (3e samedi)',
+    setupOptionLanguageFr: 'Français',
+    setupOptionLanguageEn: 'English',
+    setupOptionScheduleBefore1h: '1h avant chaque tournoi',
+    setupOptionScheduleBefore3h: '3h avant chaque tournoi',
+    setupOptionScheduleBefore7h: '7h avant chaque tournoi (recommandé)',
+    setupOptionScheduleBefore12h: '12h avant chaque tournoi',
+    setupOptionScheduleFixed08: 'Chaque jour à 08:00 (Europe/Paris)',
+    setupOptionScheduleFixed09: 'Chaque jour à 09:00 (Europe/Paris)',
+    setupOptionScheduleFixed12: 'Chaque jour à 12:00 (Europe/Paris)',
+    setupOptionScheduleFixed18: 'Chaque jour à 18:00 (Europe/Paris)',
+    setupScheduleSet: '✅ Calendrier mis à jour : **{label}**.',
 
     // Slash command descriptions (used by deploy-commands.js)
     cmdReminderDesc: 'Affiche le rappel du tournoi avec le temps restant et la liste des inscrits',
@@ -114,13 +127,13 @@ const translations = {
 
     setupSuccess: '✅ Tournament channel set to {channel}.',
     setupLanguageSet: '✅ Default server language set to **{language}**.',
-    setupAutoPostSet: '✅ Tournaments posted automatically 7h before they start: **{list}**.',
+    setupAutoPostSet: '✅ Tournaments posted automatically: **{list}**.',
     setupAutoPostEmpty: '✅ No tournament will be posted automatically.',
     setupNoPermission: '❌ You must be an administrator to use this command.',
     setupOnlyInGuild: '❌ This command must be used inside a server.',
     configMissing: '⚠️ No channel is configured. Use `/setup channel:#channel`.',
     configCurrent:
-      '⚙️ **Current configuration**\nChannel: {channel}\nLanguage: **{language}**\nAuto-posted tournaments: **{autoPost}**',
+      '⚙️ **Current configuration**\nChannel: {channel}\nLanguage: **{language}**\nAuto-posted tournaments: **{autoPost}**\nSchedule: **{schedule}**',
     autoPostNone: 'none',
 
     errorGeneric: '❌ An error occurred while executing the command.',
@@ -135,13 +148,26 @@ const translations = {
 
     setupWizardTitle: '⚙️ **Guild Wars Tournaments bot — configuration**',
     setupWizardBody:
-      'Pick the announcements channel and the tournaments to post automatically (7h before each start).',
+      'Everything is pre-filled with sensible defaults — adjust if needed, each selection is saved immediately.',
     setupSelectChannelPlaceholder: 'Pick the announcements channel…',
     setupSelectAutoPostPlaceholder: 'Pick which tournaments are posted automatically…',
+    setupSelectLanguagePlaceholder: 'Public message language…',
+    setupSelectSchedulePlaceholder: 'When to post the announcements…',
     setupOptionAta: 'AT A',
     setupOptionAtb: 'AT B',
     setupOptionAtc: 'AT C',
     setupOptionMat: 'mAT — Monthly (3rd Saturday)',
+    setupOptionLanguageFr: 'Français',
+    setupOptionLanguageEn: 'English',
+    setupOptionScheduleBefore1h: '1h before each tournament',
+    setupOptionScheduleBefore3h: '3h before each tournament',
+    setupOptionScheduleBefore7h: '7h before each tournament (recommended)',
+    setupOptionScheduleBefore12h: '12h before each tournament',
+    setupOptionScheduleFixed08: 'Every day at 08:00 (Europe/Paris)',
+    setupOptionScheduleFixed09: 'Every day at 09:00 (Europe/Paris)',
+    setupOptionScheduleFixed12: 'Every day at 12:00 (Europe/Paris)',
+    setupOptionScheduleFixed18: 'Every day at 18:00 (Europe/Paris)',
+    setupScheduleSet: '✅ Schedule updated: **{label}**.',
 
     cmdReminderDesc: 'Show the tournament reminder with remaining time and the list of attendees',
     cmdReminderTypeDesc: 'Tournament type',

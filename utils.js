@@ -134,6 +134,29 @@ export function isAutoPostTime(tournamentDate, hoursBefore = 7) {
   return now >= target && now < new Date(target.getTime() + 60000);
 }
 
+/**
+ * Returns the current hour/minute in Europe/Paris.
+ */
+export function getParisTime(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Paris',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const hour = Number(parts.find(p => p.type === 'hour')?.value ?? 0);
+  const minute = Number(parts.find(p => p.type === 'minute')?.value ?? 0);
+  return { hour, minute };
+}
+
+/**
+ * True if we are within the first minute of `hour:00` Europe/Paris.
+ */
+export function isFixedHourNow(hour) {
+  const { hour: h, minute: m } = getParisTime();
+  return h === hour && m === 0;
+}
+
 export function getTimeUntilTournament(tournamentDate) {
   const now = new Date();
   const diff = tournamentDate - now;

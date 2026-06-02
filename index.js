@@ -22,6 +22,7 @@ import {
   getNextTournament,
   isReminderTime,
   isAutoPostTime,
+  isFixedHourNow,
   isThirdSaturday,
 } from './utils.js';
 import { t, normalizeLocale, SUPPORTED_LANGUAGES } from './i18n.js';
@@ -32,6 +33,7 @@ import {
   setGuildChannel,
   setGuildLanguage,
   setGuildAutoPost,
+  setGuildScheduleMode,
   ensureGuildLanguage,
   deleteGuildConfig,
   getAllGuildConfigs,
@@ -101,7 +103,13 @@ function buildButtonsRow(type, language) {
  * Build the interactive setup wizard (channel picker + tournaments multi-select).
  * Used by the welcome message and by `/setup` invoked without arguments.
  */
-function buildSetupWizard(language, current = { autoPost: [] }) {
+function buildSetupWizard(language, current = {}) {
+  const autoPost = current.autoPost && current.autoPost.length ? current.autoPost : ['ATC', 'MAT'];
+  const currentLang = SUPPORTED_LANGUAGES.includes(current.language) ? current.language : 'en';
+  const currentSchedule = SCHEDULE_VALUES.has(current.scheduleMode)
+    ? current.scheduleMode
+    : DEFAULT_SCHEDULE_MODE;
+
   const content =
     `${t('setupWizardTitle', language)}\n\n${t('setupWizardBody', language)}`;
 
@@ -132,12 +140,51 @@ function buildSetupWizard(language, current = { autoPost: [] }) {
             .setLabel(t(o.labelKey, language))
             .setValue(o.value)
             .setEmoji(o.emoji)
-            .setDefault((current.autoPost || []).includes(o.value))
+            .setDefault(autoPost.includes(o.value))
         )
       )
   );
 
-  return { content, components: [channelRow, autoPostRow] };
+  const languageRow = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('setup_language')
+      .setPlaceholder(t('setupSelectLanguagePlaceholder', language))
+      .setMinValues(1)
+      .setMaxValues(1)
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel(t('setupOptionLanguageEn', language))
+          .setValue('en')
+          .setEmoji('🇬🇧')
+          .setDefault(currentLang === 'en'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel(t('setupOptionLanguageFr', language))
+          .setValue('fr')
+          .setEmoji('🇫🇷')
+          .setDefault(currentLang === 'fr')
+      )
+  );
+
+  const scheduleRow = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('setup_schedule')
+      .setPlaceholder(t('setupSelectSchedulePlaceholder', language))
+      .setMinValues(1)
+      .setMaxValues(1)
+      .addOptions(
+        SCHEDULE_MODES.map(m =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(t(m.labelKey, language))
+            .setValue(m.value)
+            .setDefault(m.value === currentSchedule)
+        )
+      )
+  );
+
+  return {
+    content,
+    components: [channelRow, autoPostRow, languageRow, scheduleRow],
+  };
 }
 
 async function postTournamentInscriptionMessage(guildId, type) {
@@ -176,9 +223,47 @@ async function postMorningMessageForAllGuilds(type = 'ATC') {
 // Number of hours before a tournament at which the auto-post fires.
 const AUTO_POST_HOURS_BEFORE = 7;
 
+// Available schedule modes shown in the wizard. The first one is the default.
+const SCHEDULE_MODES = [
+  { value: 'before_1h', labelKey: 'setupOptionScheduleBefore1h' },
+  { value: 'before_3h', labelKey: 'setupOptionScheduleBefore3h' },
+  { value: 'before_7h', labelKey: 'setupOptionScheduleBefore7h' },
+  { value: 'before_12h', labelKey: 'setupOptionScheduleBefore12h' },
+  { value: 'fixed_08', labelKey: 'setupOptionScheduleFixed08' },
+  { value: 'fixed_09', labelKey: 'setupOptionScheduleFixed09' },
+  { value: 'fixed_12', labelKey: 'setupOptionScheduleFixed12' },
+  { value: 'fixed_18', labelKey: 'setupOptionScheduleFixed18' },
+];
+const DEFAULT_SCHEDULE_MODE = 'before_7h';
+const SCHEDULE_VALUES = new Set(SCHEDULE_MODES.map(m => m.value));
+
+function scheduleLabel(mode, language) {
+  const def = SCHEDULE_MODES.find(m => m.value === mode);
+  return def ? t(def.labelKey, language) : mode;
+}
+
+/**
+ * Decide whether the given tournament should be posted *right now* for a guild
+ * with the given schedule mode. Caller has already filtered MAT vs 3rd-Saturday.
+ */
+function shouldPostNow(scheduleMode, tournamentType) {
+  if (scheduleMode.startsWith('before_')) {
+    const hours = Number(scheduleMode.slice('before_'.length).replace(/h$/, ''));
+    if (!Number.isFinite(hours) || hours <= 0) return false;
+    const next = getNextTournament(tournamentType);
+    return isAutoPostTime(next.date, hours);
+  }
+  if (scheduleMode.startsWith('fixed_')) {
+    const hour = Number(scheduleMode.slice('fixed_'.length));
+    if (!Number.isFinite(hour)) return false;
+    return isFixedHourNow(hour);
+  }
+  return false;
+}
+
 /**
  * Runs every minute. For each guild, posts the inscription message for any
- * auto-selected tournament whose start time is exactly 7 hours away.
+ * auto-selected tournament whose schedule matches the current minute.
  * `MAT` is only posted on the 3rd Saturday of the month.
  */
 async function checkAutoPostTime() {
@@ -191,12 +276,12 @@ async function checkAutoPostTime() {
   }
   const thirdSaturday = isThirdSaturday(new Date());
   for (const [guildId, config] of guilds) {
+    const mode = config.scheduleMode || DEFAULT_SCHEDULE_MODE;
     const types = (config.autoPost || []).filter(
       tType => TOURNAMENT_TYPES[tType] && (tType !== 'MAT' || thirdSaturday)
     );
     for (const tType of types) {
-      const next = getNextTournament(tType);
-      if (!isAutoPostTime(next.date, AUTO_POST_HOURS_BEFORE)) continue;
+      if (!shouldPostNow(mode, tType)) continue;
       try {
         await postTournamentInscriptionMessage(guildId, tType);
       } catch (error) {
@@ -343,7 +428,11 @@ async function handleSetupCommand(interaction) {
       // No options provided — show the interactive wizard so admins can
       // pick channel + tournaments with select menus instead of typing.
       const config = await getGuildConfig(interaction.guildId);
-      const wizard = buildSetupWizard(userLang, { autoPost: config?.autoPost || [] });
+      const wizard = buildSetupWizard(userLang, {
+        autoPost: config?.autoPost,
+        language: config?.language,
+        scheduleMode: config?.scheduleMode,
+      });
       await interaction.reply({ ...wizard, ephemeral: true });
       return;
     }
@@ -369,6 +458,7 @@ async function handleConfigCommand(interaction) {
         autoPost: config.autoPost?.length
           ? config.autoPost.join(', ')
           : t('autoPostNone', userLang),
+        schedule: scheduleLabel(config.scheduleMode || DEFAULT_SCHEDULE_MODE, userLang),
       })
     : t('configMissing', userLang);
   await interaction.reply({ content: text, ephemeral: true });
@@ -379,12 +469,13 @@ async function handleConfigCommand(interaction) {
 client.on(Events.InteractionCreate, async interaction => {
   // Interactive setup wizard: channel picker + tournaments multi-select.
   if (interaction.isChannelSelectMenu() || interaction.isStringSelectMenu()) {
-    if (
-      interaction.customId !== 'setup_channel' &&
-      interaction.customId !== 'setup_autopost'
-    ) {
-      // Not one of our setup menus — ignore.
-    } else {
+    const setupIds = new Set([
+      'setup_channel',
+      'setup_autopost',
+      'setup_language',
+      'setup_schedule',
+    ]);
+    if (setupIds.has(interaction.customId)) {
       const userLang = normalizeLocale(interaction.locale);
       try {
         if (!interaction.guildId) {
@@ -406,9 +497,9 @@ client.on(Events.InteractionCreate, async interaction => {
             content: t('setupSuccess', userLang, { channel: `<#${channelId}>` }),
             ephemeral: true,
           });
-        } else {
-          const ordered = ['ATA', 'ATB', 'ATC', 'MAT'].filter(t =>
-            interaction.values.includes(t)
+        } else if (interaction.customId === 'setup_autopost') {
+          const ordered = ['ATA', 'ATB', 'ATC', 'MAT'].filter(type =>
+            interaction.values.includes(type)
           );
           await setGuildAutoPost(interaction.guildId, ordered);
           await interaction.reply({
@@ -416,6 +507,22 @@ client.on(Events.InteractionCreate, async interaction => {
               ordered.length > 0
                 ? t('setupAutoPostSet', userLang, { list: ordered.join(', ') })
                 : t('setupAutoPostEmpty', userLang),
+            ephemeral: true,
+          });
+        } else if (interaction.customId === 'setup_language') {
+          const lang = normalizeLocale(interaction.values[0]);
+          await setGuildLanguage(interaction.guildId, lang);
+          await interaction.reply({
+            content: t('setupLanguageSet', lang, { language: lang }),
+            ephemeral: true,
+          });
+        } else if (interaction.customId === 'setup_schedule') {
+          const mode = SCHEDULE_VALUES.has(interaction.values[0])
+            ? interaction.values[0]
+            : DEFAULT_SCHEDULE_MODE;
+          await setGuildScheduleMode(interaction.guildId, mode);
+          await interaction.reply({
+            content: t('setupScheduleSet', userLang, { label: scheduleLabel(mode, userLang) }),
             ephemeral: true,
           });
         }
@@ -508,14 +615,19 @@ client.on(Events.InteractionCreate, async interaction => {
 
 client.on(Events.GuildCreate, async guild => {
   console.log(`➕ Joined guild ${guild.name} (${guild.id})`);
-  const lang = normalizeLocale(guild.preferredLocale);
+  // Default new guilds to English; admins can switch via the wizard.
+  const lang = 'en';
   try {
     await ensureGuildLanguage(guild.id, lang);
   } catch (error) {
     console.error('❌ Failed to initialize guild config:', error);
   }
 
-  const wizard = buildSetupWizard(lang, { autoPost: ['ATC'] });
+  const wizard = buildSetupWizard(lang, {
+    autoPost: ['ATC', 'MAT'],
+    language: lang,
+    scheduleMode: DEFAULT_SCHEDULE_MODE,
+  });
   const payload = {
     content: `${t('welcomeTitle', lang)}\n\n${t('welcomeBody', lang)}\n\n${wizard.content}`,
     components: wizard.components,

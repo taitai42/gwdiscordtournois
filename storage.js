@@ -44,21 +44,27 @@ export async function initStorage({ retries = 30, delayMs = 2000 } = {}) {
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS guild_configs (
-      guild_id    VARCHAR(32)  NOT NULL PRIMARY KEY,
-      channel_id  VARCHAR(32)  NOT NULL,
-      language    VARCHAR(8)   NOT NULL DEFAULT '${DEFAULT_LANGUAGE}',
-      auto_post   VARCHAR(64)  NOT NULL DEFAULT 'ATC',
-      created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      guild_id       VARCHAR(32)  NOT NULL PRIMARY KEY,
+      channel_id     VARCHAR(32)  NOT NULL,
+      language       VARCHAR(8)   NOT NULL DEFAULT '${DEFAULT_LANGUAGE}',
+      auto_post      VARCHAR(64)  NOT NULL DEFAULT 'ATC,MAT',
+      schedule_mode  VARCHAR(16)  NOT NULL DEFAULT 'before_7h',
+      created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
-  // Backwards-compatible migration for databases created before auto_post existed.
-  try {
-    await p.query(`ALTER TABLE guild_configs ADD COLUMN auto_post VARCHAR(64) NOT NULL DEFAULT 'ATC'`);
-  } catch (error) {
-    // ER_DUP_FIELDNAME (1060) means the column already exists — ignore it.
-    if (error?.errno !== 1060) throw error;
+  // Backwards-compatible migrations.
+  for (const ddl of [
+    `ALTER TABLE guild_configs ADD COLUMN auto_post VARCHAR(64) NOT NULL DEFAULT 'ATC,MAT'`,
+    `ALTER TABLE guild_configs ADD COLUMN schedule_mode VARCHAR(16) NOT NULL DEFAULT 'before_7h'`,
+  ]) {
+    try {
+      await p.query(ddl);
+    } catch (error) {
+      // ER_DUP_FIELDNAME (1060) means the column already exists — ignore it.
+      if (error?.errno !== 1060) throw error;
+    }
   }
 
   console.log('✅ MySQL prêt');
@@ -78,13 +84,14 @@ function rowToConfig(row) {
         channelId: row.channel_id,
         language: row.language,
         autoPost: parseAutoPost(row.auto_post),
+        scheduleMode: row.schedule_mode || 'before_7h',
       }
     : null;
 }
 
 export async function getGuildConfig(guildId) {
   const [rows] = await getPool().query(
-    'SELECT channel_id, language, auto_post FROM guild_configs WHERE guild_id = ? LIMIT 1',
+    'SELECT channel_id, language, auto_post, schedule_mode FROM guild_configs WHERE guild_id = ? LIMIT 1',
     [guildId]
   );
   return rowToConfig(rows[0]);
@@ -124,14 +131,25 @@ export async function setGuildAutoPost(guildId, types) {
 }
 
 /**
+ * Update the auto-post schedule mode (e.g. 'before_7h', 'fixed_09').
+ */
+export async function setGuildScheduleMode(guildId, mode) {
+  await getPool().query(
+    `UPDATE guild_configs SET schedule_mode = ? WHERE guild_id = ?`,
+    [String(mode), guildId]
+  );
+  return getGuildConfig(guildId);
+}
+
+/**
  * Create an empty config row (no channel yet) — used when the bot joins a
- * new guild, so we can remember its preferred language right away.
+ * new guild so we can remember sensible defaults right away.
  */
 export async function ensureGuildLanguage(guildId, language) {
   const lang = normalizeLocale(language);
   await getPool().query(
-    `INSERT IGNORE INTO guild_configs (guild_id, channel_id, language)
-       VALUES (?, '', ?)`,
+    `INSERT IGNORE INTO guild_configs (guild_id, channel_id, language, auto_post, schedule_mode)
+       VALUES (?, '', ?, 'ATC,MAT', 'before_7h')`,
     [guildId, lang]
   );
 }
@@ -142,11 +160,11 @@ export async function deleteGuildConfig(guildId) {
 
 /**
  * Returns all guilds that have a channel configured.
- * @returns {Promise<Array<[string, {channelId: string, language: string, autoPost: string[]}]>>}
+ * @returns {Promise<Array<[string, {channelId: string, language: string, autoPost: string[], scheduleMode: string}]>>}
  */
 export async function getAllGuildConfigs() {
   const [rows] = await getPool().query(
-    `SELECT guild_id, channel_id, language, auto_post
+    `SELECT guild_id, channel_id, language, auto_post, schedule_mode
        FROM guild_configs
        WHERE channel_id <> ''`
   );
@@ -156,6 +174,7 @@ export async function getAllGuildConfigs() {
       channelId: r.channel_id,
       language: r.language,
       autoPost: parseAutoPost(r.auto_post),
+      scheduleMode: r.schedule_mode || 'before_7h',
     },
   ]);
 }
