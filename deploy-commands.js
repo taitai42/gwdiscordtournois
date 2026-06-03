@@ -101,6 +101,13 @@ const commands = [
         .setDescription(t('cmdSetupMatDesc'))
         .setDescriptionLocalizations(localizationsFor('cmdSetupMatDesc'))
         .setRequired(false)
+    )
+    .addRoleOption(option =>
+      option
+        .setName('role')
+        .setDescription(t('cmdSetupRoleDesc'))
+        .setDescriptionLocalizations(localizationsFor('cmdSetupRoleDesc'))
+        .setRequired(false)
     ),
   new SlashCommandBuilder()
     .setName('config')

@@ -129,7 +129,7 @@ TERMS.md             Terms of Service
 - [Privacy Policy](PRIVACY.md) — what (little) data is stored and why.
 - [Terms of Service](TERMS.md) — usage terms for the public instance.
 
-The bot stores only the guild ID, configured channel ID, language, enabled tournaments and schedule mode. It does **not** read message content. RSVP data lives only in memory and is reset when a new sign-up message is posted.
+The bot stores only the guild ID, configured channel ID, language, enabled tournaments, schedule mode and (optionally) the role ID to mention. It does **not** read message content. RSVP data lives only in memory and is reset when a new sign-up message is posted.
 
 ---
 

@@ -54,8 +54,9 @@ const translations = {
     setupOnlyInGuild: '❌ Cette commande doit être utilisée dans un serveur.',
     configMissing: '⚠️ Aucun canal n\'est configuré. Utilisez `/setup channel:#salon`.',
     configCurrent:
-      '⚙️ **Configuration actuelle**\nCanal : {channel}\nLangue : **{language}**\nTournois automatiques : **{autoPost}**\nCalendrier : **{schedule}**',
+      '⚙️ **Configuration actuelle**\nCanal : {channel}\nLangue : **{language}**\nTournois automatiques : **{autoPost}**\nCalendrier : **{schedule}**\nRôle mentionné : {role}',
     autoPostNone: 'aucun',
+    roleNone: 'aucun',
 
     // Errors
     errorGeneric: '❌ Une erreur est survenue lors de l\'exécution de la commande.',
@@ -92,6 +93,10 @@ const translations = {
     setupOptionScheduleFixed12: 'Chaque jour à 12:00 (Europe/Paris)',
     setupOptionScheduleFixed18: 'Chaque jour à 18:00 (Europe/Paris)',
     setupScheduleSet: '✅ Calendrier mis à jour : **{label}**.',
+    setupRoleSet: '✅ Rôle à mentionner : {role}.',
+    setupRoleCleared: '✅ Aucun rôle ne sera mentionné dans les annonces.',
+    setupSelectRolePlaceholder: 'Rôle à mentionner dans les annonces (optionnel)…',
+    cmdSetupRoleDesc: 'Rôle à mentionner dans les annonces de tournoi (laisser vide pour aucun)',
 
     // Help shown after the channel is configured
     setupHelp:
@@ -160,8 +165,9 @@ const translations = {
     setupOnlyInGuild: '❌ This command must be used inside a server.',
     configMissing: '⚠️ No channel is configured. Use `/setup channel:#channel`.',
     configCurrent:
-      '⚙️ **Current configuration**\nChannel: {channel}\nLanguage: **{language}**\nAuto-posted tournaments: **{autoPost}**\nSchedule: **{schedule}**',
+      '⚙️ **Current configuration**\nChannel: {channel}\nLanguage: **{language}**\nAuto-posted tournaments: **{autoPost}**\nSchedule: **{schedule}**\nMentioned role: {role}',
     autoPostNone: 'none',
+    roleNone: 'none',
 
     errorGeneric: '❌ An error occurred while executing the command.',
     errorButton: '❌ An error occurred.',
@@ -195,6 +201,10 @@ const translations = {
     setupOptionScheduleFixed12: 'Every day at 12:00 (Europe/Paris)',
     setupOptionScheduleFixed18: 'Every day at 18:00 (Europe/Paris)',
     setupScheduleSet: '✅ Schedule updated: **{label}**.',
+    setupRoleSet: '✅ Role to mention: {role}.',
+    setupRoleCleared: '✅ No role will be mentioned in announcements.',
+    setupSelectRolePlaceholder: 'Role to mention in announcements (optional)…',
+    cmdSetupRoleDesc: 'Role to mention in tournament announcements (leave empty for none)',
 
     // Help shown after the channel is configured
     setupHelp:

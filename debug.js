@@ -62,6 +62,7 @@ function reportGuild(guildId, config) {
   console.log(`  Language:             ${config.language}`);
   console.log(`  Schedule mode:        ${mode}`);
   console.log(`  Auto-post tournaments: ${(config.autoPost || []).join(', ') || '(none)'}`);
+  console.log(`  Mentioned role:       ${config.roleId || '(none)'}`);
   console.log(`  Paris time:           ${pad(paris.hour)}:${pad(paris.minute)} (day ${day})`);
   console.log('');
   console.log('  Per-tournament status:');

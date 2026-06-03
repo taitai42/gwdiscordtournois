@@ -7,6 +7,7 @@ import {
   PermissionFlagsBits,
   Events,
   ChannelSelectMenuBuilder,
+  RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   ChannelType,
@@ -36,6 +37,7 @@ import {
   setGuildLanguage,
   setGuildAutoPost,
   setGuildScheduleMode,
+  setGuildRole,
   ensureGuildLanguage,
   deleteGuildConfig,
   getAllGuildConfigs,
@@ -188,9 +190,20 @@ function buildSetupWizard(language, current = {}) {
       )
   );
 
+  // Optional role to mention in announcements. Min=0 so the admin can leave
+  // it empty; selecting a role mentions it at the top of every post.
+  const roleRow = new ActionRowBuilder().addComponents(
+    new RoleSelectMenuBuilder()
+      .setCustomId('setup_role')
+      .setPlaceholder(t('setupSelectRolePlaceholder', language))
+      .setMinValues(0)
+      .setMaxValues(1)
+      .setDefaultRoles(current.roleId ? [current.roleId] : [])
+  );
+
   return {
     content,
-    components: [channelRow, autoPostRow, languageRow, scheduleRow],
+    components: [channelRow, autoPostRow, languageRow, scheduleRow, roleRow],
   };
 }
 
@@ -219,7 +232,12 @@ async function postTournamentInscriptionMessage(guildId, type) {
   }
 
   const content = baseMessage + formatParticipantsBlock(state, language);
-  const sentMessage = await channel.send({ content, components: [row] });
+  const rolePrefix = config.roleId ? `<@&${config.roleId}>\n` : '';
+  const sentMessage = await channel.send({
+    content: rolePrefix + content,
+    components: [row],
+    allowedMentions: config.roleId ? { roles: [config.roleId] } : { parse: [] },
+  });
   state.message = sentMessage;
 
   console.log(`✅ Inscription message ${type} posted (guild ${guildId})`);
@@ -321,8 +339,12 @@ async function postReminderMessageForAllGuilds(type) {
       const language = normalizeLocale(config.language);
       const { presentUsers, lateUsers } = getButtonResponses(guildId, type);
       const message = formatReminderMessage(presentUsers, lateUsers, type, language);
+      const rolePrefix = config.roleId ? `<@&${config.roleId}>\n` : '';
       const channel = await client.channels.fetch(config.channelId);
-      await channel.send(message);
+      await channel.send({
+        content: rolePrefix + message,
+        allowedMentions: config.roleId ? { roles: [config.roleId] } : { parse: [] },
+      });
       console.log(`✅ Reminder ${type} posted (guild ${guildId})`);
     } catch (error) {
       console.error(`❌ Reminder error ${type} (guild ${guildId}):`, error);
@@ -412,6 +434,8 @@ async function handleSetupCommand(interaction) {
 
     const channel = interaction.options.getChannel('channel');
     const languageOpt = interaction.options.getString('language');
+    const roleOpt = interaction.options.getRole('role');
+    const roleProvided = interaction.options.get('role') !== null;
     const autoPostFlags = {
       ATA: interaction.options.getBoolean('ata'),
       ATB: interaction.options.getBoolean('atb'),
@@ -445,6 +469,14 @@ async function handleSetupCommand(interaction) {
           : t('setupAutoPostEmpty', userLang)
       );
     }
+    if (roleProvided) {
+      await setGuildRole(interaction.guildId, roleOpt?.id || null);
+      replies.push(
+        roleOpt
+          ? t('setupRoleSet', userLang, { role: `<@&${roleOpt.id}>` })
+          : t('setupRoleCleared', userLang)
+      );
+    }
 
     if (replies.length === 0) {
       // No options provided — show the interactive wizard so admins can
@@ -454,12 +486,17 @@ async function handleSetupCommand(interaction) {
         autoPost: config?.autoPost,
         language: config?.language,
         scheduleMode: config?.scheduleMode,
+        roleId: config?.roleId,
       });
       await interaction.reply({ ...wizard, ephemeral: true });
       return;
     }
 
-    await interaction.reply({ content: replies.join('\n'), ephemeral: true });
+    await interaction.reply({
+      content: replies.join('\n'),
+      ephemeral: true,
+      allowedMentions: { parse: [] },
+    });
   } catch (error) {
     console.error('❌ /setup error:', error);
     await interaction.reply({ content: t('errorGeneric', userLang), ephemeral: true });
@@ -481,21 +518,31 @@ async function handleConfigCommand(interaction) {
           ? config.autoPost.join(', ')
           : t('autoPostNone', userLang),
         schedule: scheduleLabel(config.scheduleMode || DEFAULT_SCHEDULE_MODE, userLang),
+        role: config.roleId ? `<@&${config.roleId}>` : t('roleNone', userLang),
       })
     : t('configMissing', userLang);
-  await interaction.reply({ content: text, ephemeral: true });
+  await interaction.reply({
+    content: text,
+    ephemeral: true,
+    allowedMentions: { parse: [] },
+  });
 }
 
 // -- Interaction dispatcher ------------------------------------------------
 
 client.on(Events.InteractionCreate, async interaction => {
-  // Interactive setup wizard: channel picker + tournaments multi-select.
-  if (interaction.isChannelSelectMenu() || interaction.isStringSelectMenu()) {
+  // Interactive setup wizard: channel/role pickers + tournaments multi-select.
+  if (
+    interaction.isChannelSelectMenu() ||
+    interaction.isRoleSelectMenu() ||
+    interaction.isStringSelectMenu()
+  ) {
     const setupIds = new Set([
       'setup_channel',
       'setup_autopost',
       'setup_language',
       'setup_schedule',
+      'setup_role',
     ]);
     if (setupIds.has(interaction.customId)) {
       const userLang = normalizeLocale(interaction.locale);
@@ -550,6 +597,16 @@ client.on(Events.InteractionCreate, async interaction => {
             content: t('setupScheduleSet', userLang, { label: scheduleLabel(mode, userLang) }),
             ephemeral: true,
           });
+        } else if (interaction.customId === 'setup_role') {
+          const roleId = interaction.values[0] || null;
+          await setGuildRole(interaction.guildId, roleId);
+          await interaction.reply({
+            content: roleId
+              ? t('setupRoleSet', userLang, { role: `<@&${roleId}>` })
+              : t('setupRoleCleared', userLang),
+            ephemeral: true,
+            allowedMentions: { parse: [] },
+          });
         }
       } catch (error) {
         console.error('❌ Setup select error:', error);
@@ -591,9 +648,12 @@ client.on(Events.InteractionCreate, async interaction => {
             ? formatMonthlyMessage(guildLang)
             : formatMorningMessage(type, guildLang);
           const participantsList = formatParticipantsBlock(state, guildLang);
+          const rolePrefix = config?.roleId ? `<@&${config.roleId}>\n` : '';
           await state.message.edit({
-            content: baseMessage + participantsList,
+            content: rolePrefix + baseMessage + participantsList,
             components: [buildButtonsRow(type, guildLang)],
+            // Don't re-ping the role on every button click.
+            allowedMentions: { parse: [] },
           });
         } catch (editError) {
           console.error('❌ Failed to update inscription message:', editError);

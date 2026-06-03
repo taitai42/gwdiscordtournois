@@ -1,6 +1,6 @@
 // MySQL-backed persistence for per-guild configuration.
 // Schema: guild_configs(guild_id PK, channel_id, language, auto_post,
-//                       schedule_mode, created_at, updated_at)
+//                       schedule_mode, role_id, created_at, updated_at)
 
 import mysql from 'mysql2/promise';
 import { DEFAULT_LANGUAGE, normalizeLocale } from './i18n.js';
@@ -50,6 +50,7 @@ export async function initStorage({ retries = 30, delayMs = 2000 } = {}) {
       language       VARCHAR(8)   NOT NULL DEFAULT '${DEFAULT_LANGUAGE}',
       auto_post      VARCHAR(64)  NOT NULL DEFAULT 'ATC,MAT',
       schedule_mode  VARCHAR(16)  NOT NULL DEFAULT 'before_7h',
+      role_id        VARCHAR(32)  NULL,
       created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -59,6 +60,7 @@ export async function initStorage({ retries = 30, delayMs = 2000 } = {}) {
   for (const ddl of [
     `ALTER TABLE guild_configs ADD COLUMN auto_post VARCHAR(64) NOT NULL DEFAULT 'ATC,MAT'`,
     `ALTER TABLE guild_configs ADD COLUMN schedule_mode VARCHAR(16) NOT NULL DEFAULT 'before_7h'`,
+    `ALTER TABLE guild_configs ADD COLUMN role_id VARCHAR(32) NULL`,
   ]) {
     try {
       await p.query(ddl);
@@ -85,8 +87,7 @@ function rowToConfig(row) {
         channelId: row.channel_id,
         language: row.language,
         autoPost: parseAutoPost(row.auto_post),
-        scheduleMode: row.schedule_mode || 'before_7h',
-      }
+        scheduleMode: row.schedule_mode || 'before_7h',        roleId: row.role_id || null,      }
     : null;
 }
 
@@ -143,6 +144,19 @@ export async function setGuildScheduleMode(guildId, mode) {
 }
 
 /**
+ * Set or clear the role to mention in tournament announcements.
+ * Pass null/undefined/'' to clear.
+ */
+export async function setGuildRole(guildId, roleId) {
+  const value = roleId ? String(roleId) : null;
+  await getPool().query(
+    `UPDATE guild_configs SET role_id = ? WHERE guild_id = ?`,
+    [value, guildId]
+  );
+  return getGuildConfig(guildId);
+}
+
+/**
  * Create an empty config row (no channel yet) — used when the bot joins a
  * new guild so we can remember sensible defaults right away.
  */
@@ -165,7 +179,7 @@ export async function deleteGuildConfig(guildId) {
  */
 export async function getAllGuildConfigs() {
   const [rows] = await getPool().query(
-    `SELECT guild_id, channel_id, language, auto_post, schedule_mode
+    `SELECT guild_id, channel_id, language, auto_post, schedule_mode, role_id
        FROM guild_configs
        WHERE channel_id <> ''`
   );
@@ -176,6 +190,7 @@ export async function getAllGuildConfigs() {
       language: r.language,
       autoPost: parseAutoPost(r.auto_post),
       scheduleMode: r.schedule_mode || 'before_7h',
+      roleId: r.role_id || null,
     },
   ]);
 }

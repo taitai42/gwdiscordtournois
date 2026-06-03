@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Last updated: June 2, 2026_
+_Last updated: June 3, 2026_
 
 This Privacy Policy describes what data the **Guild Wars Tournaments** Discord bot (the "Bot") collects, why it is collected, and how it is stored.
 
@@ -22,6 +22,8 @@ Stored in the Operator's MySQL database for each server (guild) where the Bot is
 | Channel ID | `/setup` (you choose) | Where to post announcements |
 | Language (`fr` / `en`) | `/setup` or your server's preferred locale | Language of public messages |
 | Auto-posted tournaments list | `/setup` (you choose) | Which tournaments are announced automatically |
+| Schedule mode | `/setup` (you choose) | When announcements are posted (N hours before, or fixed daily hour) |
+| Role ID *(optional)* | `/setup` (you choose) | Server role to mention at the top of each announcement |
 | Timestamps (`created_at`, `updated_at`) | Server | Diagnostics |
 
 ### 2.2 Per-session attendance (in-memory only)
