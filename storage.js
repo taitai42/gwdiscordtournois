@@ -93,7 +93,7 @@ function rowToConfig(row) {
 
 export async function getGuildConfig(guildId) {
   const [rows] = await getPool().query(
-    'SELECT channel_id, language, auto_post, schedule_mode FROM guild_configs WHERE guild_id = ? LIMIT 1',
+    'SELECT channel_id, language, auto_post, schedule_mode, role_id FROM guild_configs WHERE guild_id = ? LIMIT 1',
     [guildId]
   );
   return rowToConfig(rows[0]);
